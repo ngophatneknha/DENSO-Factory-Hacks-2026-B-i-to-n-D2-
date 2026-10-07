@@ -1,0 +1,13 @@
+# Python
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+*.db
+backend/var/app.db
+
+# Node / Frontend
+node_modules/
+frontend/dist/
+.vite/
+*.log
