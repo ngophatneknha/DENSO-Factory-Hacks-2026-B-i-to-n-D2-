@@ -12,3 +12,5 @@ frontend/dist/
 .vite/
 *.log
 control_room_*.png
+bin/
+
