@@ -20,7 +20,11 @@ Phần lớn các giải pháp logistics trong các cuộc thi thường dừng 
 ### 🎯 Bước nhảy vọt lên Decision Intelligence (Trí tuệ Ra Quyết định):
 Dự án **D2 Logistics Control Room** biến dữ liệu thành hành động thực tiễn thông qua chu trình khép kín **Closed-Loop Decision Intelligence**:
 
-$$\text{Telemetry D0} \xrightarrow{\text{Predict (CQR)}} \text{Dải Tải q10--q90} \xrightarrow{\text{Detect (RCA)}} \text{Nguyên Nhân \& DAG} \xrightarrow{\text{Simulate (DES)}} \text{Thực Nghiệm What-if} \xrightarrow{\text{Optimize (Pareto)}} \text{Lệnh Điều Phối An Toàn}$$
+```
+   📡 Telemetry D0 ──► 🔮 Predict (CQR) ──► ⚠️ Detect (RCA & DAG) ──► 🎮 Simulate (SimPy DES) ──► ⚖️ Optimize (Pareto) ──► 📜 Lệnh Điều Phối An Toàn
+```
+
+> **Chu trình khép kín:** 📡 **Telemetry D0** ➔ 🔮 **Predict (CQR)** ➔ ⚠️ **Detect (RCA & DAG)** ➔ 🎮 **Simulate (DES)** ➔ ⚖️ **Optimize (Pareto & CVaR90)** ➔ 📜 **Lệnh Điều Phối An Toàn**
 
 ```
    ┌────────────────────────────────────────────────────────────────────────────────────────┐
@@ -86,16 +90,16 @@ flowchart TD
 
 | Tiêu chí kỹ thuật | Đồ án Phân tích / Dashboard Sinh viên thông thường | **D2 Logistics Control Room (Giải pháp dự thi)** |
 |---|---|---|
-| **Mô hình Dự báo** | Chạy Point Forecast đơn điểm (1 con số duy nhất), dễ vỡ kế hoạch khi có biến động. | **Probabilistic Multi-Quantile ($q_{10}, q_{50}, q_{90}$)** kết hợp **Conformal Prediction (CQR)**; hỗ trợ chọn tầm nhìn linh hoạt 4h, 8h (32 khung) và 24h (96 khung). |
+| **Mô hình Dự báo** | Chạy Point Forecast đơn điểm (1 con số duy nhất), dễ vỡ kế hoạch khi có biến động. | **Probabilistic Multi-Quantile (q10, q50, q90)** kết hợp **Conformal Prediction (CQR)**; hỗ trợ chọn tầm nhìn linh hoạt 4h, 8h (32 khung) và 24h (96 khung). |
 | **Phát hiện nghẽn** | Dùng ngưỡng cố định đơn giản (Rule-based Threshold > 85%). | **Intervention Marginal Impact Score**: Đo trực tiếp ROI khi bơm thêm nguồn lực; phân biệt rõ giữa "Trạm bận" và "Trạm nghẽn thực chất". |
 | **Giải thích nguyên nhân** | Không có hoặc chỉ kết luận chung chung *"Kho quá tải"*. | **Root-Cause Attribution (RCA)** lượng hóa % đóng góp (31.8% Inbound, 31.8% Dock, 23.2% Fleet) + **Cây quan hệ nhân quả (Causal DAG)** trực quan. |
 | **Mô phỏng What-if** | Tính toán công thức tĩnh trên Excel hoặc nhân tỷ lệ phần trăm thô sơ. | **Digital Twin SimPy Discrete Event Simulation**; bảo toàn vật lý (Conservation) và thứ tự công đoạn (Precedence) đạt 100%. |
 | **Theo dõi đơn hàng** | Thống kê số lượng tổng gộp, không biết đơn nào bị trễ lúc mấy giờ. | **Order-Level Fulfillment Trace**: Truy vết từng mã đơn, thời điểm qua trạm, phân biệt rõ đơn trễ thật sự, đơn quá hạn ca và hàng đệm WIP ca sau. |
 | **Đề xuất hành động** | Đưa ra lời khuyên định tính (Ví dụ: *"Nên tăng thêm nhân viên"*). | **4 Chiến lược lượng hóa cụ thể (Plan A–D)**; kết hợp tối ưu hóa Pareto và quản trị rủi ro đuôi xấu **CVaR90**. |
-| **Truy vấn nghịch đảo** | Không thể thực hiện được. | **Counterfactual Solver**: Trả lời chính xác *"Cần cấu hình tối thiểu bao nhiêu nhân sự và nhịp xe để đạt SLA $\ge 95\%$?"*. |
+| **Truy vấn nghịch đảo** | Không thể thực hiện được. | **Counterfactual Solver**: Trả lời chính xác *"Cần cấu hình tối thiểu bao nhiêu nhân sự và nhịp xe để đạt SLA ≥ 95%?"*. |
 | **Trợ lý AI Copilot** | Chatbot chung chung, dễ sinh ảo giác (Hallucination) nguy hiểm cho sản xuất. | **Grounded Logistics Copilot**: Ràng buộc cứng an toàn, từ chối lệnh vi phạm nguồn lực thực tế nhà máy. |
 | **Quản trị vận hành** | Không có cơ chế lưu vết lịch sử điều hành. | **Phiếu Lệnh Điều Phối chuẩn in ấn** + **Sổ cái Audit Ledger** bất biến bảo mật mã băm SHA-256. |
-| **Môi trường xanh** | Không đề cập đến bài toán phát thải. | **Green Logistics Tracker**: Đo lường lượng $kg\ CO_2e$ phát thải mỗi ca và tối ưu giảm km xe kéo chạy rỗng (-7.0% CO₂ ở Plan C). |
+| **Môi trường xanh** | Không đề cập đến bài toán phát thải. | **Green Logistics Tracker**: Đo lường lượng **kg CO₂e** phát thải mỗi ca và tối ưu giảm km xe kéo chạy rỗng (-7.0% CO₂ ở Plan C). |
 
 ---
 
@@ -246,7 +250,7 @@ tests/test_api_and_domain.py::test_copilot_and_safety_guardrails PASSED        [
 ```
 
 * **Bảo toàn vật lý (Conservation Law):** Số đơn nhận vào = Số đơn giao thành công + Số đơn tồn đệm WIP trên dây chuyền (100% khớp).
-* **Tiền đề thời gian (Stage Precedence):** Tuyệt đối tuân thủ trình tự vật lý: $t_{\text{arrival}} \le t_{\text{pick\_start}} \le t_{\text{pick\_end}} \le t_{\text{load\_end}} \le t_{\text{delivered}}$.
+* **Tiền đề thời gian (Stage Precedence):** Tuyệt đối tuân thủ trình tự vật lý: $t_{\text{arrival}} \le t_{\text{pick}} \le t_{\text{load}} \le t_{\text{delivered}}$.
 * **Tính tất định (Determinism with CRN):** Hai lần mô phỏng với cùng seed ngẫu nhiên cho ra kết quả đồng nhất đến từng chữ số thập phân.
 * **Xác thực ràng buộc cứng (Hard Constraints):** Tự động từ chối các đề xuất bất khả thi như yêu cầu điều chuyển nhân viên không có chứng chỉ hoặc vượt quá số xe có sẵn.
 
@@ -257,13 +261,13 @@ tests/test_api_and_domain.py::test_copilot_and_safety_guardrails PASSED        [
 Khi trình bày trước Ban Giám Khảo, đề xuất thứ tự demo trong 5 phút như sau:
 
 1. **Phút 1 — Màn hình Tổng quan Điều hành (Overview Tab):**
-   * Giới thiệu **Bản đồ 2D CAD Digital Twin**: Chỉ rõ dòng chảy vật tư từ Kho Supermarket $\to$ 4 Bàn soạn $\to$ 3 Cầu bốc Dock $\to$ Đội xe Tugger Milk-run $\to$ 4 Chuyền sản xuất.
+   * Giới thiệu **Bản đồ 2D CAD Digital Twin**: Chỉ rõ dòng chảy vật tư từ Kho Supermarket ➔ 4 Bàn soạn ➔ 3 Cầu bốc Dock ➔ Đội xe Tugger Milk-run ➔ 4 Chuyền sản xuất.
    * Chỉ số **Logistics Health Score động** phản ánh trung thực nguy cơ nghẽn khi nhu cầu tăng cao.
    * Bấm nút **"Chế độ Replay Sự cố"**: Tua lại diễn biến 5 giai đoạn sự cố trong Ca S1 giúp BGK nắm bắt trực quan vấn đề chỉ trong 20 giây.
 
 2. **Phút 2 — Màn hình Dự Báo Xác Suất (Predict Tab):**
    * Nhấn chuyển đổi giữa các tầm nhìn **4h · 8h · 24h**: Chứng minh khả năng dự báo 96 khung thời gian bao quát toàn bộ chu kỳ 3 ca làm việc.
-   * Trình bày **Dải bất định Conformal ($q_{10}-q_{90}$)**: Giúp người điều hành chủ động đối phó với rủi ro thiếu hụt phụ tùng thay vì tin vào một con số dự báo điểm duy nhất.
+   * Trình bày **Dải bất định Conformal (q10 – q90)**: Giúp người điều hành chủ động đối phó với rủi ro thiếu hụt phụ tùng thay vì tin vào một con số dự báo điểm duy nhất.
    * Chỉ vào **Bảng đối chứng Backtest**: Cắt giảm **31.8% sai số WAPE** so với kế hoạch sản xuất cơ sở.
 
 3. **Phút 3 — Màn hình Điểm Nghẽn & Phân Tích Nhân Quả (Detect Tab):**
