@@ -8,7 +8,6 @@ backend/var/app.db
 
 # Node / Frontend
 node_modules/
-frontend/dist/
 .vite/
 *.log
 control_room_*.png
