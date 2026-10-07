@@ -10,7 +10,7 @@ DATASETS_DIR = VAR_DIR / "datasets"
 MODELS_DIR = VAR_DIR / "models"
 RUNS_DIR = VAR_DIR / "runs"
 DB_PATH = VAR_DIR / "app.db"
-FRONTEND_DIST = BASE_DIR.parent / "frontend" / "dist"
+FRONTEND_DIST = Path(os.environ.get("D2_FRONTEND_DIST", BASE_DIR.parent / "frontend" / "dist"))
 
 for d in (VAR_DIR, DATASETS_DIR, MODELS_DIR, RUNS_DIR):
     d.mkdir(parents=True, exist_ok=True)

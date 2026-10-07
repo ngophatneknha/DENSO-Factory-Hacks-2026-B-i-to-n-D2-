@@ -1,0 +1,19 @@
+services:
+  control-room:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: denso-d2-control-room
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      - PORT=8000
+      - D2_VAR_DIR=/app/backend/var
+      - D2_FRONTEND_DIST=/app/frontend/dist
+    volumes:
+      # Persistent storage for audit logs and datasets
+      - d2_var_data:/app/backend/var
+
+volumes:
+  d2_var_data:
