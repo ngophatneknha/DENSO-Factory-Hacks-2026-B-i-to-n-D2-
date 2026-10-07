@@ -27,6 +27,7 @@ from .recommend.optimizer import evaluate_actions_on_scenarios
 from .audit import init_db, log_audit, get_recent_audit_logs, _get_conn
 from .jobs import run_in_background, get_job_status
 from .reports import build_excel_report
+from .cache import analytics_cache, cached
 
 
 app = FastAPI(
@@ -106,6 +107,7 @@ def trigger_generate_dataset(seed: int = 42, history_days: int = 84):
         ds = generate_dataset(seed=seed, now=DEFAULT_NOW, history_days=history_days, progress=lambda p, m: prog_cb(int(p*100), m))
         v = save_dataset(ds)
         write_current(data_version=v, now=DEFAULT_NOW.isoformat(), seed=seed)
+        analytics_cache.clear()
         log_audit("DATASET_GENERATE", "Operator", v, {"seed": seed, "history_days": history_days})
         return {"data_version": v, "meta": ds["meta"]}
 
@@ -152,6 +154,7 @@ async def upload_data_file(file: UploadFile = File(...)):
         }
         save_dataset(new_ds_dict)
         write_current(data_version=version)
+        analytics_cache.clear()
         log_audit("DATA_UPLOAD", "Operator", version, {"filename": file.filename})
         return {"status": "SUCCESS", "version": version, "tables_imported": list(tables.keys())}
     except Exception as ex:
@@ -209,6 +212,7 @@ def browse_table(
 # Predict Endpoints
 # ==============================================================================
 @app.get("/api/predict/forecast")
+@cached("forecast", ttl=30.0)
 def get_forecast(horizon_hours: int = Query(8, ge=1, le=24)):
     ds = active_dataset()
     res = predict_engine.forecast_upcoming(
@@ -223,6 +227,7 @@ def get_forecast(horizon_hours: int = Query(8, ge=1, le=24)):
 
 
 @app.get("/api/predict/backtest")
+@cached("backtest", ttl=120.0)
 def get_backtest():
     ds = active_dataset()
     if not predict_engine.is_trained:
@@ -233,9 +238,8 @@ def get_backtest():
 # ==============================================================================
 # Detect Endpoints
 # ==============================================================================
-# Detect Endpoints
-# ==============================================================================
 @app.get("/api/detect/alerts")
+@cached("alerts", ttl=30.0)
 def get_alerts():
     ds = active_dataset()
     fc = predict_engine.forecast_upcoming(
@@ -255,6 +259,7 @@ def get_alerts():
 
 
 @app.get("/api/detect/bottlenecks")
+@cached("bottlenecks", ttl=30.0)
 def get_bottlenecks():
     ds = active_dataset()
     cfg = default_config()
@@ -278,6 +283,7 @@ def get_bottlenecks():
 
 
 @app.get("/api/detect/rca")
+@cached("rca", ttl=60.0)
 def get_root_cause_analysis(
     stage: str = "loading",
     utilization: float = 88.5,
@@ -301,6 +307,7 @@ class EvaluateActionsRequest(BaseModel):
 
 
 @app.post("/api/recommend/evaluate")
+@cached("recommend_eval", ttl=30.0)
 def evaluate_recommendations(req: EvaluateActionsRequest):
     ds = active_dataset()
     cfg = default_config()
@@ -348,6 +355,7 @@ class MultiPlanRequest(BaseModel):
 
 
 @app.post("/api/recommend/multi-plans")
+@cached("multi_plans", ttl=60.0)
 def get_multi_objective_plans(req: MultiPlanRequest):
     from .recommend.multi_plan import compute_multi_objective_plans
     baseline_kpis = {"late_minutes": 120.0, "late_rate": 0.18}
@@ -362,12 +370,14 @@ def get_multi_objective_plans(req: MultiPlanRequest):
 
 
 @app.get("/api/recommend/counterfactual")
+@cached("counterfactual", ttl=60.0)
 def get_counterfactual(target_sla: float = 95.0):
     from .recommend.multi_plan import solve_counterfactual_recommendation
     return solve_counterfactual_recommendation(target_sla=target_sla)
 
 
 @app.get("/api/recommend/ablation")
+@cached("ablation", ttl=60.0)
 def get_ablation_benchmarks_table():
     from .recommend.multi_plan import get_ablation_benchmarks
     return get_ablation_benchmarks()
@@ -387,6 +397,7 @@ class CustomSimRequest(BaseModel):
 
 
 @app.post("/api/simulate/custom")
+@cached("simulate_custom", ttl=30.0)
 def simulate_custom(sim_cfg: CustomSimRequest):
     ds = active_dataset()
     cfg = default_config()
