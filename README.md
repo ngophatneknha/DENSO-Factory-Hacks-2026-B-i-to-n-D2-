@@ -1,3 +1,15 @@
+---
+title: DENSO Factory Hacks 2026 - D2 Control Room
+emoji: 🏭
+colorFrom: blue
+colorTo: indigo
+sdk: gradio
+sdk_version: 5.16.0
+app_file: app.py
+pinned: false
+license: mit
+---
+
 # 🏭 DENSO FACTORY HACKS 2026 — PROBLEM D2
 # 🚀 D2 LOGISTICS CONTROL ROOM: DECISION INTELLIGENCE & DIGITAL TWIN
 ### Hệ Thống Bản Sao Số, Dự Báo Xác Suất, Định Lượng Nhân Quả & Đề Xuất Đối Sách Khép Kín Cho Logistics Nhà Máy
