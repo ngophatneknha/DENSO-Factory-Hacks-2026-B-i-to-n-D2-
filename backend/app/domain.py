@@ -64,7 +64,7 @@ class FactoryConfig:
     tugger_dock_load_min: float = 1.0
     tugger_load_per_req_min: float = 0.25
     unload_per_req_min: float = 0.8
-    due_minutes: float = 90.0
+    due_minutes: float = 45.0  # JIT intralogistics standard buffer (45 min lead time SLA)
     efficiency: float = 0.9  # share of paid time usable for work (capacity model)
     break_offsets_min: List[int] = field(default_factory=lambda: [240, 270])
     break_len_min: int = 30

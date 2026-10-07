@@ -45,7 +45,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
   // Playback state
   const [playbackTime, setPlaybackTime] = useState<number>(0);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [orderFilter, setOrderFilter] = useState<"ALL" | "LATE" | "ON_TIME">("ALL");
+  const [orderFilter, setOrderFilter] = useState<"ALL" | "LATE" | "ON_TIME" | "WIP">("ALL");
   const [orderSearch, setOrderSearch] = useState<string>("");
 
   const t = {
@@ -298,8 +298,9 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
 
   // Filtered orders list
   const filteredOrders = (simResult?.order_sample || []).filter((ord) => {
-    if (orderFilter === "LATE" && ord.status !== "LATE") return false;
+    if (orderFilter === "LATE" && !(ord.status === "LATE" || ord.status === "OVERDUE")) return false;
     if (orderFilter === "ON_TIME" && ord.status !== "ON_TIME") return false;
+    if (orderFilter === "WIP" && ord.status !== "WIP_IN_PROGRESS") return false;
     if (orderSearch.trim()) {
       const q = orderSearch.toLowerCase();
       return (
@@ -643,7 +644,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
             <div className="p-3.5 rounded-xl bg-[#131c2e] border border-[#243552]">
               <div className="text-slate-400 text-[11px]">Tổng đơn đến hạn</div>
               <div className="text-xl font-black text-white mt-1">{simResult.kpis.n_due}</div>
-              <div className="text-[10px] text-slate-500 mt-0.5">100% kiểm soát</div>
+              <div className="text-[10px] text-cyan-300 mt-0.5">Hạn trong ca (≤480m)</div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-[#131c2e] border border-[#243552]">
@@ -674,7 +675,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
             <div className="p-3.5 rounded-xl bg-[#131c2e] border border-[#243552]">
               <div className="text-slate-400 text-[11px]">Sản lượng giao xong</div>
               <div className="text-xl font-black text-white mt-1">{simResult.kpis.throughput} đơn</div>
-              <div className="text-[10px] text-emerald-400 mt-0.5 font-medium">Đến 4 chuyền</div>
+              <div className="text-[10px] text-emerald-400 mt-0.5 font-medium">Gồm WIP + đơn mới</div>
             </div>
 
             <div className="p-3.5 rounded-xl bg-[#131c2e] border border-[#243552]">
@@ -730,9 +731,9 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
                       {isUnderMaintenance && (
                         <div 
                           className="absolute top-0 bottom-0 bg-rose-950/60 border border-rose-800 text-[10px] text-rose-300 font-bold flex items-center justify-center"
-                          style={{ left: "40%", width: "35%" }}
+                          style={{ left: "50%", width: "25%" }}
                         >
-                          BẢO DƯỠNG (13:00 - 16:00)
+                          BẢO DƯỠNG (10:00 - 12:00)
                         </div>
                       )}
 
@@ -810,7 +811,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
               </div>
 
               <div className="flex items-center bg-[#101726] p-1 rounded-lg border border-[#23314d] text-xs">
-                {(["ALL", "LATE", "ON_TIME"] as const).map((st) => (
+                {(["ALL", "LATE", "ON_TIME", "WIP"] as const).map((st) => (
                   <button
                     key={st}
                     onClick={() => setOrderFilter(st)}
@@ -820,7 +821,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
                         : "text-slate-400 hover:text-white"
                     }`}
                   >
-                    {st === "ALL" ? "Tất cả" : st === "LATE" ? "Đơn trễ" : "Đúng hạn"}
+                    {st === "ALL" ? "Tất cả" : st === "LATE" ? "Đơn trễ" : st === "ON_TIME" ? "Đúng hạn" : "Tồn WIP"}
                   </button>
                 ))}
               </div>
@@ -843,7 +844,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#1e2a44] bg-[#0f1626]/80 font-mono">
-                {filteredOrders.slice(0, 25).map((ord) => (
+                {filteredOrders.slice(0, 30).map((ord) => (
                   <tr key={ord.request_id} className="hover:bg-[#18233a]/60 text-slate-300 transition">
                     <td className="py-2.5 px-3 font-bold text-white">{ord.request_id}</td>
                     <td className="py-2.5 px-3 text-cyan-300">{ord.line_id}</td>
@@ -856,14 +857,22 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
                       <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
                         ord.status === "LATE" 
                           ? "bg-rose-950 text-rose-300 border border-rose-800" 
+                          : ord.status === "OVERDUE"
+                          ? "bg-rose-950 text-rose-300 border border-rose-800"
+                          : ord.status === "WIP_IN_PROGRESS"
+                          ? "bg-cyan-950/70 text-cyan-300 border border-cyan-800"
                           : "bg-emerald-950 text-emerald-300 border border-emerald-800"
                       }`}>
-                        {ord.status === "LATE" ? "TRỄ HẠN" : "ĐÚNG HẠN"}
+                        {ord.status === "LATE" ? "TRỄ HẠN" : ord.status === "OVERDUE" ? "QUÁ HẠN CA" : ord.status === "WIP_IN_PROGRESS" ? "ĐANG XỬ LÝ (WIP)" : "ĐÚNG HẠN"}
                       </span>
                     </td>
                     <td className="py-2.5 px-3 font-bold">
                       {ord.status === "LATE" ? (
                         <span className="text-rose-400">+{ord.late_min} phút</span>
+                      ) : ord.status === "OVERDUE" ? (
+                        <span className="text-rose-400">+{ord.late_min} phút (chưa giao)</span>
+                      ) : ord.status === "WIP_IN_PROGRESS" ? (
+                        <span className="text-slate-400 font-normal">Hạn ca sau (WIP)</span>
                       ) : (
                         <span className="text-emerald-400">0 phút</span>
                       )}

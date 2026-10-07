@@ -61,7 +61,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       exportExcel: "Xuất Excel",
       mode: "DỮ LIỆU TỔNG HỢP",
       readiness: "D0 READY",
-      telemetry: "LIVE TELEMETRY",
+      telemetry: "GIẢ LẬP ĐIỀU HÀNH (SIMULATED D0)",
       copilot: "Copilot AI",
     },
     en: {
@@ -77,7 +77,7 @@ export const Navbar: React.FC<NavbarProps> = ({
       exportExcel: "Export Excel",
       mode: "SYNTHETIC DATA",
       readiness: "D0 READY",
-      telemetry: "LIVE TELEMETRY",
+      telemetry: "SIMULATED TELEMETRY (D0)",
       copilot: "Copilot AI",
     },
   }[lang];

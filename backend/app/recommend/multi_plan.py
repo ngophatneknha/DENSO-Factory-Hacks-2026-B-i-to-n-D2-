@@ -37,6 +37,7 @@ def compute_multi_objective_plans(
     # Plan A: Lowest Cost
     plan_a = {
         "plan_id": "PLAN_A",
+        "action_id": "ACT_REASSIGN_PICK_TO_LOAD",
         "name": "Phương án A: Tiết Kiệm Chi Phí Tối Đa (Lowest Cost)",
         "theme": "Cost-focused",
         "badge_color": "cyan",
@@ -64,6 +65,7 @@ def compute_multi_objective_plans(
     # Plan B: Lowest Delay / Maximum SLA
     plan_b = {
         "plan_id": "PLAN_B",
+        "action_id": "ACT_ACTIVATE_SPARE_TUGGER",
         "name": "Phương án B: Giảm Trễ Tối Đa & Bảo Đảm SLA (Lowest Delay)",
         "theme": "SLA-critical",
         "badge_color": "rose",
@@ -91,6 +93,7 @@ def compute_multi_objective_plans(
     # Plan C: Balanced (Recommended Pareto)
     plan_c = {
         "plan_id": "PLAN_C",
+        "action_id": "ACT_COMBINED_BEST",
         "name": "Phương án C: Cân Bằng Toàn Diện (Recommended Pareto)",
         "theme": "Balanced",
         "badge_color": "emerald",
@@ -118,6 +121,7 @@ def compute_multi_objective_plans(
     # Plan D: Green / Eco (Lowest Carbon Footprint)
     plan_d = {
         "plan_id": "PLAN_D",
+        "action_id": "ACT_TIGHTEN_CYCLE",
         "name": "Phương án D: Tối Ưu Hóa Bền Vững & Giảm Phát Thải CO2 (Green Logistics)",
         "theme": "Sustainability",
         "badge_color": "teal",

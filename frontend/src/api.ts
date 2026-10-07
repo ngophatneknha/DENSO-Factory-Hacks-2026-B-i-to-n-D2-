@@ -139,7 +139,7 @@ export interface OrderSample {
   pick_end: number | null;
   load_end: number | null;
   delivered: number | null;
-  status: "ON_TIME" | "LATE";
+  status: "ON_TIME" | "LATE" | "OVERDUE" | "WIP_IN_PROGRESS" | string;
   late_min: number;
   picker_id: string;
   tugger_id: string;
@@ -380,6 +380,7 @@ export interface RcaResponse {
 
 export interface StrategicPlan {
   plan_id: string;
+  action_id?: string;
   name: string;
   theme: string;
   badge_color: string;

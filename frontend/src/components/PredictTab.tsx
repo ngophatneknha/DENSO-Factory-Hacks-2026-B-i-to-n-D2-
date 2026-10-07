@@ -15,7 +15,7 @@ import {
   CheckCircle2,
   Gauge
 } from "lucide-react";
-import { ForecastResponse } from "../api";
+import { ForecastResponse, fetchForecast } from "../api";
 
 interface PredictTabProps {
   forecast: ForecastResponse | null;
@@ -26,6 +26,20 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
   const [showScenarios, setShowScenarios] = useState(false);
   const [selectedHorizon, setSelectedHorizon] = useState<4 | 8 | 24>(8);
   const [selectedScenarioIdx, setSelectedScenarioIdx] = useState<number | null>(null);
+  const [forecastData, setForecastData] = useState<ForecastResponse | null>(forecast);
+  const [loadingForecast, setLoadingForecast] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    if (selectedHorizon === 8 && forecast && !forecastData) {
+      setForecastData(forecast);
+      return;
+    }
+    setLoadingForecast(true);
+    fetchForecast(selectedHorizon)
+      .then((res) => setForecastData(res))
+      .catch((err) => console.error("Error fetching forecast:", err))
+      .finally(() => setLoadingForecast(false));
+  }, [selectedHorizon]);
 
   const t = {
     vi: {
@@ -62,7 +76,18 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
     },
   }[lang];
 
-  if (!forecast) {
+  const activeForecast = forecastData || forecast;
+
+  if (!activeForecast && loadingForecast) {
+    return (
+      <div className="control-panel p-12 text-center text-slate-400">
+        <Activity className="w-8 h-8 mx-auto mb-3 animate-spin text-[#ff6b00]" />
+        <span>Đang tải dữ liệu dự báo xác suất tầm nhìn {selectedHorizon} giờ...</span>
+      </div>
+    );
+  }
+
+  if (!activeForecast) {
     return (
       <div className="control-panel p-12 text-center text-slate-400">
         <Activity className="w-8 h-8 mx-auto mb-3 animate-spin text-[#ff6b00]" />
@@ -71,10 +96,8 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
     );
   }
 
-  // Filter timeline based on selected horizon
-  // 4h = 16 buckets, 8h = 32 buckets, 24h = all available
-  const bucketLimit = selectedHorizon === 4 ? 16 : selectedHorizon === 8 ? 32 : forecast.timeline.length;
-  const filteredTimeline = forecast.timeline.slice(0, bucketLimit);
+  // Use full timeline returned by the backend for the selected horizon
+  const filteredTimeline = activeForecast.timeline;
 
   const times = filteredTimeline.map((p) => p.bucket_start.slice(11, 16));
   const q10 = filteredTimeline.map((p) => p.q10);
@@ -211,7 +234,7 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
     ],
   };
 
-  const bt = forecast.backtest;
+  const bt = activeForecast.backtest;
 
   return (
     <div className="space-y-6">
@@ -279,7 +302,7 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
               <span>{t.chartTitle}</span>
             </h2>
             <div className="text-[11px] text-slate-400 mt-0.5">
-              Thời điểm quyết định: <span className="font-mono text-slate-200">{forecast.as_of}</span> · {filteredTimeline.length} khung thời gian hiển thị
+              Thời điểm quyết định: <span className="font-mono text-slate-200">{activeForecast.as_of}</span> · {filteredTimeline.length} khung thời gian hiển thị
             </div>
           </div>
 
@@ -360,7 +383,7 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
           </p>
 
           <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-5 gap-2.5 text-xs">
-            {forecast.scenarios.slice(0, 15).map((sc, idx) => {
+            {activeForecast.scenarios.slice(0, 15).map((sc, idx) => {
               const maxVal = Math.max(...sc);
               const sumVal = sc.reduce((a, b) => a + b, 0);
               const isSelected = selectedScenarioIdx === idx;

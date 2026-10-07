@@ -316,7 +316,7 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
                 <div className="text-amber-400 font-extrabold text-lg mt-0.5 font-mono">
                   {rcaData.expected_start}
                 </div>
-                <div className="text-[10px] text-slate-400">Ca làm việc: Ca S2 (14:00 - 22:00)</div>
+                <div className="text-[10px] text-slate-400">Ca làm việc: Ca S1 (06:00 - 14:00)</div>
               </div>
 
               <div className="p-3 rounded-xl bg-[#0d1424] border border-[#1e2c45]">
@@ -402,7 +402,7 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
                     <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-700/50 flex items-center justify-between">
                       <div>
                         <span className="text-[10px] text-rose-400 font-bold uppercase block">Root Event 2</span>
-                        <span className="text-rose-200 font-semibold">Xe TG-03 bảo dưỡng lúc 13:00 - 16:00</span>
+                        <span className="text-rose-200 font-semibold">Xe TG-03 bảo dưỡng lúc 10:00 - 12:00</span>
                       </div>
                       <span className="px-2 py-0.5 rounded bg-rose-900/60 text-rose-300 font-mono text-[10px] font-bold">
                         W: 0.26

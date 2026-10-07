@@ -231,7 +231,12 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
 
   const onChartClick = (params: any) => {
     if (params && params.value && params.value[5]) {
-      setSelectedActionId(params.value[5]);
+      const actId = params.value[5];
+      setSelectedActionId(actId);
+      if (actId === "ACT_REASSIGN_PICK_TO_LOAD") setSelectedPlanId("PLAN_A");
+      else if (actId === "ACT_ACTIVATE_SPARE_TUGGER") setSelectedPlanId("PLAN_B");
+      else if (actId === "ACT_COMBINED_BEST") setSelectedPlanId("PLAN_C");
+      else if (actId === "ACT_TIGHTEN_CYCLE") setSelectedPlanId("PLAN_D");
     }
   };
 
@@ -431,11 +436,20 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
           {multiPlans?.plans.map((p) => {
             const isSelected = p.plan_id === selectedPlanId;
             const isRec = p.plan_id === "PLAN_C";
+            const linkedActionId = p.action_id || (
+              p.plan_id === "PLAN_A" ? "ACT_REASSIGN_PICK_TO_LOAD" :
+              p.plan_id === "PLAN_B" ? "ACT_ACTIVATE_SPARE_TUGGER" :
+              p.plan_id === "PLAN_C" ? "ACT_COMBINED_BEST" :
+              "ACT_TIGHTEN_CYCLE"
+            );
 
             return (
               <div
                 key={p.plan_id}
-                onClick={() => setSelectedPlanId(p.plan_id)}
+                onClick={() => {
+                  setSelectedPlanId(p.plan_id);
+                  setSelectedActionId(linkedActionId);
+                }}
                 className={`p-4 rounded-xl border transition-all cursor-pointer relative flex flex-col justify-between ${
                   isSelected
                     ? "bg-gradient-to-b from-[#182642] to-[#11192a] border-[#ff6b00] ring-2 ring-[#ff6b00]/40 shadow-lg shadow-[#ff6b00]/10"
@@ -449,12 +463,18 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
                 )}
 
                 <div>
-                  <div className="flex items-center space-x-2 mb-2">
+                  <div className="flex items-center space-x-2 mb-1.5">
                     {p.plan_id === "PLAN_A" && <DollarSign className="w-4 h-4 text-cyan-400" />}
                     {p.plan_id === "PLAN_B" && <Flame className="w-4 h-4 text-rose-400" />}
                     {p.plan_id === "PLAN_C" && <Award className="w-4 h-4 text-emerald-400" />}
                     {p.plan_id === "PLAN_D" && <Leaf className="w-4 h-4 text-teal-400" />}
                     <span className="font-extrabold text-white text-xs">{p.name}</span>
+                  </div>
+
+                  <div className="flex items-center space-x-1.5 mb-2">
+                    <span className="font-mono text-[9px] px-1.5 py-0.5 rounded bg-[#16233b] border border-[#233554] text-cyan-300 font-semibold">
+                      Mã đối sách: {linkedActionId}
+                    </span>
                   </div>
 
                   <p className="text-[11px] text-slate-300 leading-relaxed mb-3">
@@ -718,11 +738,23 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
         </div>
 
         <div className="h-76 w-full">
-          <ReactECharts 
-            option={paretoChartOption} 
-            onEvents={{ click: onChartClick }}
-            style={{ height: "100%", width: "100%" }} 
-          />
+          {loading ? (
+            <div className="h-full w-full flex flex-col items-center justify-center bg-[#0d1424]/70 rounded-xl border border-[#1e2d48] p-6 text-center space-y-3">
+              <div className="w-9 h-9 rounded-full border-3 border-[#ff6b00] border-t-transparent animate-spin"></div>
+              <div className="text-xs font-bold text-white tracking-wide uppercase">
+                Đang chạy 12 kịch bản SimPy với Common Random Numbers (CRN)...
+              </div>
+              <div className="text-[11px] text-slate-400 max-w-md">
+                Đánh giá tổn thất kỳ vọng E[L] & rủi ro đuôi CVaR90 cho 6 phương án điều độ trong ca kíp...
+              </div>
+            </div>
+          ) : (
+            <ReactECharts 
+              option={paretoChartOption} 
+              onEvents={{ click: onChartClick }}
+              style={{ height: "100%", width: "100%" }} 
+            />
+          )}
         </div>
       </div>
 
@@ -732,102 +764,117 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
           {t.actionsTableTitle}
         </h3>
 
-        <div className="overflow-x-auto rounded-xl border border-[#22314d]">
-          <table className="w-full text-xs text-left border-collapse">
-            <thead>
-              <tr className="border-b border-[#23314d] text-slate-400 bg-[#101726]">
-                <th className="py-3 px-3.5 font-bold">Mã</th>
-                <th className="py-3 px-3.5 font-bold">Tên giải pháp can thiệp</th>
-                <th className="py-3 px-3 font-bold">Chi phí (đ)</th>
-                <th className="py-3 px-3 font-bold">Tổn thất E[L]</th>
-                <th className="py-3 px-3 font-bold text-amber-400">Rủi ro CVaR90</th>
-                <th className="py-3 px-3 font-bold text-white">Risk Score</th>
-                <th className="py-3 px-3 font-bold">Trễ TB</th>
-                <th className="py-3 px-3 font-bold">Khả thi</th>
-                <th className="py-3 px-3.5 font-bold text-right">Thao tác</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-[#18233a] bg-[#0c1220]/60">
-              {data?.evaluations.map((act) => {
-                const isSelected = act.action_id === (selectedActionId || data.best_action_id);
+        {loading ? (
+          <div className="p-8 text-center text-xs text-slate-400 bg-[#0c1220]/60 rounded-xl border border-[#22314d] flex flex-col items-center justify-center space-y-2">
+            <div className="w-6 h-6 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin"></div>
+            <span>Đang lượng hóa rủi ro và lọc ràng buộc khả thi cho các phương án can thiệp...</span>
+          </div>
+        ) : (
+          <div className="overflow-x-auto rounded-xl border border-[#22314d]">
+            <table className="w-full text-xs text-left border-collapse">
+              <thead>
+                <tr className="border-b border-[#23314d] text-slate-400 bg-[#101726]">
+                  <th className="py-3 px-3.5 font-bold">Mã</th>
+                  <th className="py-3 px-3.5 font-bold">Tên giải pháp can thiệp</th>
+                  <th className="py-3 px-3 font-bold">Chi phí (đ)</th>
+                  <th className="py-3 px-3 font-bold">Tổn thất E[L]</th>
+                  <th className="py-3 px-3 font-bold text-amber-400">Rủi ro CVaR90</th>
+                  <th className="py-3 px-3 font-bold text-white">Risk Score</th>
+                  <th className="py-3 px-3 font-bold">Trễ TB</th>
+                  <th className="py-3 px-3 font-bold">Khả thi</th>
+                  <th className="py-3 px-3.5 font-bold text-right">Thao tác</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#18233a] bg-[#0c1220]/60">
+                {data?.evaluations.map((act) => {
+                  const isSelected = act.action_id === (selectedActionId || data.best_action_id);
 
-                return (
-                  <tr
-                    key={act.action_id}
-                    onClick={() => act.is_feasible && setSelectedActionId(act.action_id)}
-                    className={`transition cursor-pointer ${
-                      isSelected
-                        ? "bg-[#ff6b00]/15 font-medium border-l-2 border-l-[#ff6b00]"
-                        : "hover:bg-[#18233a]/60 text-slate-300"
-                    }`}
-                  >
-                    <td className="py-3 px-3.5 font-mono text-slate-400">{act.action_id}</td>
-                    <td className="py-3 px-3.5">
-                      <div className="text-white font-medium flex items-center space-x-2">
-                        <span>{act.name}</span>
-                        {act.action_id === data.best_action_id && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#ff6b00] text-white font-extrabold">
-                            KHUYẾN NGHỊ ★
+                  return (
+                    <tr
+                      key={act.action_id}
+                      onClick={() => {
+                        if (act.is_feasible) {
+                          setSelectedActionId(act.action_id);
+                          if (act.action_id === "ACT_REASSIGN_PICK_TO_LOAD") setSelectedPlanId("PLAN_A");
+                          else if (act.action_id === "ACT_ACTIVATE_SPARE_TUGGER") setSelectedPlanId("PLAN_B");
+                          else if (act.action_id === "ACT_COMBINED_BEST") setSelectedPlanId("PLAN_C");
+                          else if (act.action_id === "ACT_TIGHTEN_CYCLE") setSelectedPlanId("PLAN_D");
+                        }
+                      }}
+                      className={`transition cursor-pointer ${
+                        isSelected
+                          ? "bg-[#ff6b00]/15 font-medium border-l-2 border-l-[#ff6b00]"
+                          : "hover:bg-[#18233a]/60 text-slate-300"
+                      }`}
+                    >
+                      <td className="py-3 px-3.5 font-mono text-slate-400">{act.action_id}</td>
+                      <td className="py-3 px-3.5">
+                        <div className="text-white font-medium flex items-center space-x-2">
+                          <span>{act.name}</span>
+                          {act.action_id === data.best_action_id && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-[#ff6b00] text-white font-extrabold">
+                              KHUYẾN NGHỊ ★
+                            </span>
+                          )}
+                          {act.is_pareto && (
+                            <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
+                              Pareto
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 font-mono">
+                        {act.cost_vnd > 0 ? `${act.cost_vnd.toLocaleString()} đ` : "0 đ"}
+                      </td>
+                      <td className="py-3 px-3 font-mono">
+                        {act.is_feasible ? `${act.expected_loss_vnd?.toLocaleString()} đ` : "-"}
+                      </td>
+                      <td className="py-3 px-3 font-mono text-amber-400">
+                        {act.is_feasible ? `${act.cvar90_loss_vnd?.toLocaleString()} đ` : "-"}
+                      </td>
+                      <td className="py-3 px-3 font-mono font-bold text-white">
+                        {act.is_feasible ? `${act.risk_score?.toLocaleString()} đ` : "-"}
+                      </td>
+                      <td className="py-3 px-3 font-mono">
+                        {act.is_feasible ? `${act.avg_late_minutes}m` : "-"}
+                      </td>
+                      <td className="py-3 px-3">
+                        {act.is_feasible ? (
+                          <span className="text-emerald-400 font-semibold flex items-center space-x-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>Khả thi</span>
+                          </span>
+                        ) : (
+                          <span className="text-rose-400 flex items-center space-x-1" title={act.infeasibility_reason}>
+                            <XCircle className="w-3.5 h-3.5" />
+                            <span className="truncate max-w-[130px]">Vi phạm: {act.infeasibility_reason}</span>
                           </span>
                         )}
-                        {act.is_pareto && (
-                          <span className="px-1.5 py-0.5 rounded text-[10px] bg-emerald-950 text-emerald-300 border border-emerald-800">
-                            Pareto
-                          </span>
+                      </td>
+                      <td className="py-3 px-3.5 text-right">
+                        {act.is_feasible && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleApprove(act.action_id, act.name, act.cost_vnd, act.expected_loss_vnd);
+                            }}
+                            className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
+                              approvedActionId === act.action_id
+                                ? "bg-emerald-700 text-white"
+                                : "bg-[#1f2d47] hover:bg-[#ff6b00] hover:text-white text-slate-200"
+                            }`}
+                          >
+                            {approvedActionId === act.action_id ? "Đã duyệt" : "Phê duyệt"}
+                          </button>
                         )}
-                      </div>
-                    </td>
-                    <td className="py-3 px-3 font-mono">
-                      {act.cost_vnd > 0 ? `${act.cost_vnd.toLocaleString()} đ` : "0 đ"}
-                    </td>
-                    <td className="py-3 px-3 font-mono">
-                      {act.is_feasible ? `${act.expected_loss_vnd?.toLocaleString()} đ` : "-"}
-                    </td>
-                    <td className="py-3 px-3 font-mono text-amber-400">
-                      {act.is_feasible ? `${act.cvar90_loss_vnd?.toLocaleString()} đ` : "-"}
-                    </td>
-                    <td className="py-3 px-3 font-mono font-bold text-white">
-                      {act.is_feasible ? `${act.risk_score?.toLocaleString()} đ` : "-"}
-                    </td>
-                    <td className="py-3 px-3 font-mono">
-                      {act.is_feasible ? `${act.avg_late_minutes}m` : "-"}
-                    </td>
-                    <td className="py-3 px-3">
-                      {act.is_feasible ? (
-                        <span className="text-emerald-400 font-semibold flex items-center space-x-1">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          <span>Khả thi</span>
-                        </span>
-                      ) : (
-                        <span className="text-rose-400 flex items-center space-x-1" title={act.infeasibility_reason}>
-                          <XCircle className="w-3.5 h-3.5" />
-                          <span className="truncate max-w-[130px]">Vi phạm: {act.infeasibility_reason}</span>
-                        </span>
-                      )}
-                    </td>
-                    <td className="py-3 px-3.5 text-right">
-                      {act.is_feasible && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleApprove(act.action_id, act.name, act.cost_vnd, act.expected_loss_vnd);
-                          }}
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold transition cursor-pointer ${
-                            approvedActionId === act.action_id
-                              ? "bg-emerald-700 text-white"
-                              : "bg-[#1f2d47] hover:bg-[#ff6b00] hover:text-white text-slate-200"
-                          }`}
-                        >
-                          {approvedActionId === act.action_id ? "Đã duyệt" : "Phê duyệt"}
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

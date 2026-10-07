@@ -30,7 +30,7 @@ def analyze_bottleneck_root_cause(
         raw_fleet = max(0.0, tugger_deficit * 35.0)
         raw_dock = max(0.0, dock_queue_len * 12.0)
         raw_workforce = 15.0 if break_overlap else 5.0
-        primary_title = "Quá tải bốc dỡ do nhu cầu ca S2 tăng vọt (+30%) & thiếu xe kéo giải tỏa dock"
+        primary_title = "Quá tải bốc dỡ do nhu cầu L1/L2 tăng vọt (+30%) & thiếu xe kéo giải tỏa dock"
     elif stage == "transport":
         raw_inbound = max(0.0, demand_surge_pct * 1.2)
         raw_fleet = max(0.0, tugger_deficit * 55.0)
@@ -55,7 +55,7 @@ def analyze_bottleneck_root_cause(
 
     breakdown = [
         {"factor": "Đột biến nhu cầu sản xuất (Inbound Surge)", "pct": pct_inbound, "color": "#ff6b00", "desc": "Kế hoạch L1 & L2 tăng 30% tạo áp lực đơn dồn"},
-        {"factor": "Thiếu hụt phương tiện kéo (Tugger Shortage)", "pct": pct_fleet, "color": "#f43f5e", "desc": "Xe TG-03 bảo dưỡng 13:00 - 16:00 làm giảm 33% năng lực kéo"},
+        {"factor": "Thiếu hụt phương tiện kéo (Tugger Shortage)", "pct": pct_fleet, "color": "#f43f5e", "desc": "Xe TG-03 bảo dưỡng 10:00 - 12:00 làm giảm 33% năng lực kéo"},
         {"factor": "Nghẽn tích tụ tại Cầu bốc (Dock Congestion)", "pct": pct_dock, "color": "#f59e0b", "desc": "Chỉ có 2 loaders vận hành cho 3 cửa bốc hàng"},
         {"factor": "Ràng buộc ca kíp & nghỉ giữa ca (Workforce Breaks)", "pct": pct_workforce, "color": "#818cf8", "desc": "Cửa sổ nghỉ ca 30 phút làm giảm tạm thời nhịp soạn"},
         {"factor": "Yếu tố biến động ngẫu nhiên khác (Random Jitter)", "pct": pct_other, "color": "#64748b", "desc": "Biến thiên thời gian di chuyển và bốc dỡ thực tế"},
@@ -67,8 +67,8 @@ def analyze_bottleneck_root_cause(
     return {
         "stage": stage,
         "bottleneck_probability": min(98.5, round(utilization * 1.05, 1)),
-        "expected_start": "14:15",
-        "expected_duration": "2 giờ 15 phút",
+        "expected_start": "10:15",
+        "expected_duration": "1 giờ 45 phút",
         "primary_cause": primary_title,
         "attribution_breakdown": breakdown,
         "causal_graph": {

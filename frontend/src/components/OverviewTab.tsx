@@ -132,6 +132,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   const peakRatio = forecast?.timeline.reduce((max, p) => Math.max(max, p.overload_ratio), 0) || 0;
   const wipCount = currentData?.tables?.snapshot_wip_count || 19;
 
+  // Dynamic Health Score computation (penalizes peak overload & active critical alerts)
+  const criticalAlertsCount = alerts.filter(a => a.severity === "CRITICAL" || a.severity === "WARNING").length;
+  const calculatedHealthScore = Math.max(
+    38,
+    Math.min(
+      98,
+      Math.round(
+        100 - (peakRatio > 1.0 ? (peakRatio - 1.0) * 58 : 0) - (criticalAlertsCount * 8)
+      )
+    )
+  );
+  const liveHealthScore = currentReplayPhase ? currentReplayPhase.kpis.health_score : calculatedHealthScore;
+  const healthColor = liveHealthScore >= 80 ? "#10b981" : liveHealthScore >= 60 ? "#f59e0b" : "#f43f5e";
+
   // Station Detail dictionary for deep-dive
   const stationDetails: Record<string, any> = {
     supermarket: {
@@ -197,7 +211,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       equipment: [
         { name: "Xe đầu kéo TG-01", status: "Đang chạy vòng 04 (Pin 82%)" },
         { name: "Xe đầu kéo TG-02", status: "Đang xếp hàng tại Dock 1 (Pin 75%)" },
-        { name: "Xe đầu kéo TG-03", status: "Đang bảo dưỡng định kỳ 13:00 - 16:00" },
+        { name: "Xe đầu kéo TG-03", status: "Đang bảo dưỡng định kỳ 10:00 - 12:00" },
       ],
       kpis: { speed: "20 phút / vòng lặp", bufferHealth: "Công suất bận 94%", cycle: "8 đơn / chuyến xe" }
     },
@@ -235,10 +249,10 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                   cx="32"
                   cy="32"
                   r="28"
-                  stroke={currentReplayPhase ? (currentReplayPhase.kpis.health_score > 80 ? "#10b981" : currentReplayPhase.kpis.health_score > 60 ? "#f59e0b" : "#f43f5e") : "#10b981"}
+                  stroke={healthColor}
                   strokeWidth="6"
                   strokeDasharray="175.9"
-                  strokeDashoffset={175.9 * (1 - (currentReplayPhase?.kpis.health_score || 88) / 100)}
+                  strokeDashoffset={175.9 * (1 - liveHealthScore / 100)}
                   strokeLinecap="round"
                   fill="transparent"
                   className="transition-all duration-700"
@@ -246,7 +260,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
               </svg>
               <div className="absolute flex flex-col items-center">
                 <span className="text-base font-black text-white font-mono">
-                  {currentReplayPhase?.kpis.health_score || 88}
+                  {liveHealthScore}
                 </span>
                 <span className="text-[8px] text-slate-400 -mt-1 font-bold">SCORE</span>
               </div>
@@ -260,14 +274,20 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
                 </span>
               </div>
               <div className="text-xs text-slate-300 mt-0.5">
-                Trạng thái: <b className="text-emerald-400">Vận hành Ổn định</b> (Đang kiểm soát nguy cơ nghẽn Cầu bốc hàng)
+                {liveHealthScore >= 80 ? (
+                  <>Trạng thái: <b className="text-emerald-400">Vận hành Ổn định</b> (Hệ thống trong hạn mức tải an toàn)</>
+                ) : liveHealthScore >= 60 ? (
+                  <>Trạng thái: <b className="text-amber-400">Cảnh báo Nguy cơ Nghẽn</b> (Tải đỉnh {(peakRatio * 100).toFixed(0)}%, {criticalAlertsCount} cảnh báo)</>
+                ) : (
+                  <>Trạng thái: <b className="text-rose-400">Nguy cơ Quá tải Cao ({(peakRatio * 100).toFixed(0)}%)</b> (Khuyến nghị kích hoạt đối sách can thiệp)</>
+                )}
               </div>
               <div className="flex items-center space-x-3 text-[11px] text-slate-400 mt-1">
-                <span>Throughput: <b className="text-slate-200 font-mono">94%</b></span>
+                <span>Throughput: <b className="text-slate-200 font-mono">{currentReplayPhase ? "94%" : liveHealthScore >= 80 ? "95%" : "82%"}</b></span>
                 <span>•</span>
-                <span>SLA Bảo đảm: <b className="text-emerald-400 font-mono">{currentReplayPhase?.kpis.sla || "98.4%"}</b></span>
+                <span>SLA Bảo đảm: <b className="text-emerald-400 font-mono">{currentReplayPhase?.kpis.sla || (liveHealthScore >= 80 ? "98.4%" : "86.2%")}</b></span>
                 <span>•</span>
-                <span>Tugger Fleet: <b className="text-cyan-400 font-mono">{currentReplayPhase?.kpis.fleet_util || "74%"}</b></span>
+                <span>Tugger Fleet: <b className="text-cyan-400 font-mono">{currentReplayPhase?.kpis.fleet_util || (liveHealthScore >= 80 ? "74%" : "95% (Tải cao)")}</b></span>
               </div>
             </div>
           </div>
@@ -483,7 +503,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
           </div>
           <div className="mt-2.5 flex items-center justify-between text-[11px] text-slate-400">
             <span>Snapshot ban đầu</span>
-            <span className="text-cyan-300 font-bold">14:00 sẵn sàng</span>
+            <span className="text-cyan-300 font-bold">06:00 sẵn sàng</span>
           </div>
         </div>
 

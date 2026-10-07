@@ -83,7 +83,7 @@ export function App() {
           </div>
         ) : (
           <>
-            {activeTab === "overview" && (
+            <div style={{ display: activeTab === "overview" ? "block" : "none" }}>
               <OverviewTab
                 forecast={forecast}
                 alerts={alerts}
@@ -91,30 +91,30 @@ export function App() {
                 onNavigateTab={setActiveTab}
                 lang={lang}
               />
-            )}
-            {activeTab === "predict" && (
+            </div>
+            <div style={{ display: activeTab === "predict" ? "block" : "none" }}>
               <PredictTab forecast={forecast} lang={lang} />
-            )}
-            {activeTab === "detect" && (
+            </div>
+            <div style={{ display: activeTab === "detect" ? "block" : "none" }}>
               <DetectTab alerts={alerts} lang={lang} />
-            )}
-            {activeTab === "simulate" && (
+            </div>
+            <div style={{ display: activeTab === "simulate" ? "block" : "none" }}>
               <SimulateTab lang={lang} />
-            )}
-            {activeTab === "recommend" && (
+            </div>
+            <div style={{ display: activeTab === "recommend" ? "block" : "none" }}>
               <RecommendTab lang={lang} />
-            )}
-            {activeTab === "data" && (
+            </div>
+            <div style={{ display: activeTab === "data" ? "block" : "none" }}>
               <DataTab
                 currentData={currentData}
                 quality={currentData?.quality || null}
                 onRefreshData={loadAll}
                 lang={lang}
               />
-            )}
-            {activeTab === "audit" && (
-              <AuditTab lang={lang} />
-            )}
+            </div>
+            <div style={{ display: activeTab === "audit" ? "block" : "none" }}>
+              <AuditTab lang={lang} isActive={activeTab === "audit"} />
+            </div>
           </>
         )}
       </main>

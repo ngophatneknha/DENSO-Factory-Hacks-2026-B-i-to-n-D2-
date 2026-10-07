@@ -309,8 +309,12 @@ def evaluate_recommendations(req: EvaluateActionsRequest):
         seed=42,
     )
     if req.demand_multiplier != 1.0:
-        # Scale demand by duplicating or subsampling requests
-        req_pool = req_pool.sample(frac=req.demand_multiplier, replace=True, random_state=42).reset_index(drop=True)
+        frac = req.demand_multiplier
+        n_extra = int(len(req_pool) * (frac - 1.0))
+        if n_extra > 0:
+            extra_sample = req_pool.sample(n=n_extra, replace=True, random_state=42).copy().reset_index(drop=True)
+            extra_sample["request_id"] = [f"{rid}_SURGE_{i+1:03d}" for i, rid in enumerate(extra_sample["request_id"])]
+            req_pool = pd.concat([req_pool, extra_sample], ignore_index=True)
 
     res = evaluate_actions_on_scenarios(
         cfg=cfg,
@@ -394,7 +398,11 @@ def simulate_custom(sim_cfg: CustomSimRequest):
     )
     if sim_cfg.demand_surge_pct > 0:
         frac = 1.0 + (sim_cfg.demand_surge_pct / 100.0)
-        req_pool = req_pool.sample(frac=frac, replace=True, random_state=sim_cfg.seed).reset_index(drop=True)
+        n_extra = int(len(req_pool) * (frac - 1.0))
+        if n_extra > 0:
+            extra_sample = req_pool.sample(n=n_extra, replace=True, random_state=sim_cfg.seed).copy().reset_index(drop=True)
+            extra_sample["request_id"] = [f"{rid}_SURGE_{i+1:03d}" for i, rid in enumerate(extra_sample["request_id"])]
+            req_pool = pd.concat([req_pool, extra_sample], ignore_index=True)
 
     # Build custom adjustments
     temps = []
@@ -445,14 +453,43 @@ def simulate_custom(sim_cfg: CustomSimRequest):
                 "orders_count": int(tr["n"]),
             })
 
-    # Order-level fulfillment sample
+    # Order-level fulfillment trace: include all late orders, WIP orders, and representative on-time orders
     reqs_df = res.requests
+    deliv_col = reqs_df["delivered"]
+    due_col = reqs_df["due_min"]
+    is_deliv = deliv_col.notna()
+
+    is_late_deliv = is_deliv & (deliv_col > due_col + 1e-6)
+    is_overdue = (~is_deliv) & (due_col <= horizon_min)
+    is_wip = (~is_deliv) & (due_col > horizon_min)
+    is_ontime = is_deliv & (~is_late_deliv)
+
+    late_df = reqs_df[is_late_deliv | is_overdue]
+    wip_df = reqs_df[is_wip]
+    ontime_df = reqs_df[is_ontime]
+
+    trace_df = pd.concat([
+        late_df,
+        wip_df.head(20),
+        ontime_df.head(50),
+    ]).drop_duplicates(subset=["request_id"]).sort_values(by="due_min")
+
     sample_rows = []
-    for _, row in reqs_df.head(40).iterrows():
+    for _, row in trace_df.iterrows():
         deliv = row["delivered"]
         due = row["due_min"]
-        is_late = bool(deliv > due + 1e-6) if pd.notna(deliv) else True
-        late_min = round(max(0.0, float(deliv - due)), 1) if pd.notna(deliv) else round(max(0.0, float(horizon_min - due)), 1)
+        if pd.notna(deliv):
+            is_late = bool(deliv > due + 1e-6)
+            late_min = round(max(0.0, float(deliv - due)), 1)
+            status = "LATE" if is_late else "ON_TIME"
+        else:
+            # Undelivered at horizon_min (480.0)
+            if due <= horizon_min:
+                status = "OVERDUE"  # Overdue in current shift
+                late_min = round(max(0.0, float(horizon_min - due)), 1)
+            else:
+                status = "WIP_IN_PROGRESS"  # Due in next shift, normal buffer WIP
+                late_min = 0.0
         sample_rows.append({
             "request_id": str(row["request_id"]),
             "line_id": str(row["line_id"]),
@@ -461,7 +498,7 @@ def simulate_custom(sim_cfg: CustomSimRequest):
             "pick_end": round(float(row["pick_end"]), 1) if pd.notna(row["pick_end"]) else None,
             "load_end": round(float(row["load_end"]), 1) if pd.notna(row["load_end"]) else None,
             "delivered": round(float(deliv), 1) if pd.notna(deliv) else None,
-            "status": "LATE" if is_late else "ON_TIME",
+            "status": status,
             "late_min": late_min,
             "picker_id": str(row.get("picker_id", "-")),
             "tugger_id": str(row.get("tugger_id", "-")),

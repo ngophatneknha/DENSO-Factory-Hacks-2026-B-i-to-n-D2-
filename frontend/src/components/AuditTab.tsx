@@ -15,16 +15,18 @@ import { fetchDecisions, fetchAuditLogs } from "../api";
 
 interface AuditTabProps {
   lang: "vi" | "en";
+  isActive?: boolean;
 }
 
-export const AuditTab: React.FC<AuditTabProps> = ({ lang }) => {
+export const AuditTab: React.FC<AuditTabProps> = ({ lang, isActive }) => {
   const [decisions, setDecisions] = useState<any[]>([]);
   const [logs, setLogs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeView, setActiveView] = useState<"DECISIONS" | "SYSTEM_LOGS">("DECISIONS");
   const [searchTerm, setSearchTerm] = useState("");
 
-  useEffect(() => {
+  const reloadAuditData = () => {
+    setLoading(true);
     Promise.all([fetchDecisions(), fetchAuditLogs()])
       .then(([decRes, logRes]) => {
         setDecisions(decRes);
@@ -32,7 +34,11 @@ export const AuditTab: React.FC<AuditTabProps> = ({ lang }) => {
       })
       .catch((err) => console.error(err))
       .finally(() => setLoading(false));
-  }, []);
+  };
+
+  useEffect(() => {
+    reloadAuditData();
+  }, [isActive]);
 
   const t = {
     vi: {
