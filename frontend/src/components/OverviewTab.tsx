@@ -32,6 +32,7 @@ import {
   SkipBack
 } from "lucide-react";
 import { ForecastResponse, AlertItem, fetchIncidentReplay, IncidentReplayResponse } from "../api";
+import { PlantFloorplanCAD } from "./PlantFloorplanCAD";
 
 interface OverviewTabProps {
   forecast: ForecastResponse | null;
@@ -507,282 +508,117 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
         </div>
       </div>
 
-      {/* 2D Digital Twin Supply Flow Schematic Map */}
-      <div className="control-panel p-5.5 relative">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
-          <div>
-            <h2 className="text-xs font-black uppercase tracking-wider text-slate-200 flex items-center space-x-2">
-              <span className="w-2.5 h-2.5 rounded-sm bg-[#ff6b00]"></span>
-              <span>{t.flowTitle}</span>
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">{t.flowDesc}</p>
-          </div>
+      {/* 2D Digital Twin Supply Flow Schematic Map (CAD Blueprint) */}
+      <PlantFloorplanCAD
+        selectedStation={selectedStation}
+        onSelectStation={(st) => {
+          setSelectedStation(st);
+          setShowDrawer(true);
+        }}
+        dockQueueCount={currentReplayPhase ? currentReplayPhase.kpis.dock_queue : 4}
+        activeTuggers={currentReplayPhase ? currentReplayPhase.active_tuggers : ["TG1", "TG2"]}
+        lang={lang}
+      />
 
-          <div className="flex items-center space-x-3 text-xs text-slate-400 bg-[#0e1626] px-3 py-1.5 rounded-lg border border-[#23314d]">
-            <span className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-              <span>Thông suốt</span>
-            </span>
-            <span className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-amber-400"></span>
-              <span>Áp lực</span>
-            </span>
-            <span className="flex items-center space-x-1.5">
-              <span className="w-2 h-2 rounded-full bg-rose-400 radar-active"></span>
-              <span>Điểm nghẽn</span>
-            </span>
-          </div>
-        </div>
-
-        {/* Interactive 5-Stage Station Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-3 relative">
-          {/* Station 0: Supermarket */}
-          <div 
-            onClick={() => { setSelectedStation("supermarket"); setShowDrawer(true); }}
-            className={`p-4 rounded-xl border transition cursor-pointer relative ${
-              selectedStation === "supermarket"
-                ? "bg-[#1c2844] border-[#ff6b00] ring-2 ring-[#ff6b00]/40 shadow-lg shadow-[#ff6b00]/15"
-                : "bg-[#111929]/90 border-[#22314d] hover:border-slate-400"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-slate-800 text-indigo-400">
-                <Warehouse className="w-4 h-4" />
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-800">
-                {t.normal}
+      {/* Station Deep-Dive Drawer */}
+      {showDrawer && currStation && (
+        <div className="control-panel p-5 rounded-xl border border-[#2b3d61] bg-[#0c1322] relative animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-[#1f2d47] gap-2">
+            <div className="flex items-center space-x-2.5">
+              <span className="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold bg-[#ff6b00] text-white">
+                {currStation.code}
               </span>
+              <span className="font-extrabold text-white text-sm">{currStation.name}</span>
+              <span className="text-xs text-slate-400">({currStation.area})</span>
             </div>
-            <div className="text-xs font-bold text-white mb-1">{t.supermarket}</div>
-            <div className="text-[11px] text-slate-400 space-y-1">
-              <div>• Khu vực: <span className="text-slate-200 font-mono">SMKT-A</span></div>
-              <div>• Tồn kho đệm: <span className="text-emerald-400 font-bold">100% Đầy</span></div>
-              <div>• Nhân lực: <span className="text-slate-300">2 Thủ kho</span></div>
-            </div>
-            <div className="mt-3 text-[10px] text-cyan-400 flex items-center space-x-1 font-semibold">
-              <span>Bấm để soi chi tiết</span>
-              <ChevronRight className="w-3 h-3" />
+
+            <div className="flex items-center space-x-2">
+              <span className="text-xs text-slate-400">Chi tiết trạm đang chọn</span>
+              <button 
+                onClick={() => setShowDrawer(false)}
+                className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                title="Đóng bảng chi tiết"
+              >
+                <X className="w-4 h-4" />
+              </button>
             </div>
           </div>
 
-          {/* Station 1: Picking */}
-          <div 
-            onClick={() => { setSelectedStation("picking"); setShowDrawer(true); }}
-            className={`p-4 rounded-xl border transition cursor-pointer relative ${
-              selectedStation === "picking"
-                ? "bg-[#1c2844] border-[#ff6b00] ring-2 ring-[#ff6b00]/40 shadow-lg shadow-[#ff6b00]/15"
-                : "bg-[#111929]/90 border-[#22314d] hover:border-slate-400"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-slate-800 text-cyan-400">
-                <PackageOpen className="w-4 h-4" />
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-3 text-xs">
+            {/* Workers & Skill Roster */}
+            <div className="p-3.5 rounded-lg bg-[#111929] border border-[#1e2a42]">
+              <div className="flex items-center space-x-2 text-slate-200 font-bold mb-2.5">
+                <Users className="w-4 h-4 text-cyan-400" />
+                <span>Nhân Sự & Kỹ Năng Phân Bổ:</span>
               </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-950/60 text-emerald-400 border border-emerald-800">
-                Util 59%
-              </span>
-            </div>
-            <div className="text-xs font-bold text-white mb-1">{t.picking}</div>
-            <div className="text-[11px] text-slate-400 space-y-1">
-              <div>• Bàn soạn: <span className="text-slate-200 font-bold">4 Bays (PK1-4)</span></div>
-              <div>• Nhân sự: <span className="text-slate-200 font-bold">4 Pickers</span> (1 đa năng)</div>
-              <div>• Hàng đợi: <span className="text-cyan-400 font-mono font-bold">2 đơn chờ</span></div>
-            </div>
-            <div className="mt-3 text-[10px] text-cyan-400 flex items-center space-x-1 font-semibold">
-              <span>Bấm để soi chi tiết</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </div>
-
-          {/* Station 2: Loading Docks */}
-          <div 
-            onClick={() => { setSelectedStation("loading"); setShowDrawer(true); }}
-            className={`p-4 rounded-xl border transition cursor-pointer relative ${
-              selectedStation === "loading"
-                ? "bg-[#1c2844] border-[#ff6b00] ring-2 ring-[#ff6b00]/40 shadow-lg shadow-[#ff6b00]/15"
-                : "bg-[#111929]/90 border-[#22314d] hover:border-slate-400"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-slate-800 text-[#ff6b00]">
-                <Anchor className="w-4 h-4" />
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-950/60 text-amber-400 border border-amber-800">
-                ROI 4.8x ★
-              </span>
-            </div>
-            <div className="text-xs font-bold text-white mb-1">{t.loading}</div>
-            <div className="text-[11px] text-slate-400 space-y-1">
-              <div>• Cầu bốc: <span className="text-slate-200 font-bold">3 Docks (DK1-3)</span></div>
-              <div>• Nhân sự: <span className="text-amber-400 font-bold">2 Loaders (Thiếu)</span></div>
-              <div>• Hàng đợi: <span className="text-amber-400 font-mono font-bold">{currentReplayPhase ? currentReplayPhase.kpis.dock_queue : 4} đơn</span></div>
-            </div>
-            <div className="mt-3 text-[10px] text-[#ff8f3d] flex items-center space-x-1 font-semibold">
-              <span>Điểm can thiệp cốt lõi</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </div>
-
-          {/* Station 3: Tugger Transport */}
-          <div 
-            onClick={() => { setSelectedStation("transport"); setShowDrawer(true); }}
-            className={`p-4 rounded-xl border transition cursor-pointer relative ${
-              selectedStation === "transport"
-                ? "bg-[#1c2844] border-[#ff6b00] ring-2 ring-[#ff6b00]/40 shadow-lg shadow-[#ff6b00]/15"
-                : "bg-[#111929]/90 border-[#22314d] hover:border-slate-400"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-slate-800 text-rose-400">
-                <Truck className="w-4 h-4" />
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-950/70 text-rose-300 border border-rose-800 flex items-center space-x-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-rose-400 animate-ping"></span>
-                <span>{currentReplayPhase ? currentReplayPhase.kpis.fleet_util : "Bận 94%"}</span>
-              </span>
-            </div>
-            <div className="text-xs font-bold text-white mb-1">{t.transport}</div>
-            <div className="text-[11px] text-slate-400 space-y-1">
-              <div>• Đội xe: <span className="text-slate-200 font-bold">TG1, TG2 (TG3 bảo trì)</span></div>
-              <div>• Chu kỳ: <span className="text-slate-200">20 phút / chuyến</span></div>
-              <div>• Sức chứa: <span className="text-rose-400 font-mono font-bold">8 đơn / chuyến</span></div>
-            </div>
-            <div className="mt-3 text-[10px] text-cyan-400 flex items-center space-x-1 font-semibold">
-              <span>Bấm để soi chi tiết</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </div>
-
-          {/* Station 4: 4 Assembly Lines */}
-          <div 
-            onClick={() => { setSelectedStation("lines"); setShowDrawer(true); }}
-            className={`p-4 rounded-xl border transition cursor-pointer relative ${
-              selectedStation === "lines"
-                ? "bg-[#1c2844] border-[#ff6b00] ring-2 ring-[#ff6b00]/40 shadow-lg shadow-[#ff6b00]/15"
-                : "bg-[#111929]/90 border-[#22314d] hover:border-slate-400"
-            }`}
-          >
-            <div className="flex items-center justify-between mb-2">
-              <div className="p-2 rounded-lg bg-slate-800 text-emerald-400">
-                <Factory className="w-4 h-4" />
-              </div>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-indigo-950/60 text-indigo-300 border border-indigo-800">
-                L1 & L2 +30%
-              </span>
-            </div>
-            <div className="text-xs font-bold text-white mb-1">{t.lines}</div>
-            <div className="text-[11px] text-slate-400 space-y-1">
-              <div>• Line 1 & Line 2: <span className="text-[#ff8f3d] font-bold">Tăng 30% mẫu mới</span></div>
-              <div>• Line 3 & Line 4: <span className="text-slate-300">Định mức chuẩn</span></div>
-              <div>• Takt Time: <span className="text-emerald-400 font-mono font-bold">58 giây / xe</span></div>
-            </div>
-            <div className="mt-3 text-[10px] text-cyan-400 flex items-center space-x-1 font-semibold">
-              <span>Bấm để soi chi tiết</span>
-              <ChevronRight className="w-3 h-3" />
-            </div>
-          </div>
-        </div>
-
-        {/* Station Deep-Dive Drawer */}
-        {showDrawer && currStation && (
-          <div className="mt-5 p-4.5 rounded-xl border border-[#2b3d61] bg-[#0c1322] relative animate-in fade-in duration-200">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between pb-3 border-b border-[#1f2d47] gap-2">
-              <div className="flex items-center space-x-2.5">
-                <span className="px-2 py-0.5 rounded text-[10px] font-mono font-extrabold bg-[#ff6b00] text-white">
-                  {currStation.code}
-                </span>
-                <span className="font-extrabold text-white text-sm">{currStation.name}</span>
-                <span className="text-xs text-slate-400">({currStation.area})</span>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-xs text-slate-400">Chi tiết trạm đang chọn</span>
-                <button 
-                  onClick={() => setShowDrawer(false)}
-                  className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
-                  title="Đóng bảng chi tiết"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-3 text-xs">
-              {/* Workers & Skill Roster */}
-              <div className="p-3.5 rounded-lg bg-[#111929] border border-[#1e2a42]">
-                <div className="flex items-center space-x-2 text-slate-200 font-bold mb-2.5">
-                  <Users className="w-4 h-4 text-cyan-400" />
-                  <span>Nhân Sự & Kỹ Năng Phân Bổ:</span>
-                </div>
-                <div className="space-y-2">
-                  {currStation.workers.map((w: any) => (
-                    <div key={w.id} className="p-2 rounded bg-[#0d1424] border border-[#1a253a] flex items-start justify-between">
-                      <div>
-                        <div className="font-semibold text-white flex items-center space-x-1.5">
-                          <span>{w.name}</span>
-                          <span className="text-[10px] font-mono text-cyan-300">({w.id})</span>
-                        </div>
-                        <div className="text-[11px] text-slate-400">{w.skill}</div>
+              <div className="space-y-2">
+                {currStation.workers.map((w: any) => (
+                  <div key={w.id} className="p-2 rounded bg-[#0d1424] border border-[#1a253a] flex items-start justify-between">
+                    <div>
+                      <div className="font-semibold text-white flex items-center space-x-1.5">
+                        <span>{w.name}</span>
+                        <span className="text-[10px] font-mono text-cyan-300">({w.id})</span>
                       </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">
-                        {w.role}
-                      </span>
+                      <div className="text-[11px] text-slate-400">{w.skill}</div>
                     </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Machinery & Equipment Telemetry */}
-              <div className="p-3.5 rounded-lg bg-[#111929] border border-[#1e2a42]">
-                <div className="flex items-center space-x-2 text-slate-200 font-bold mb-2.5">
-                  <Gauge className="w-4 h-4 text-emerald-400" />
-                  <span>Thiết Bị & Máy Móc Vận Hành:</span>
-                </div>
-                <div className="space-y-2">
-                  {currStation.equipment.map((eq: any, idx: number) => (
-                    <div key={idx} className="p-2 rounded bg-[#0d1424] border border-[#1a253a] flex items-center justify-between">
-                      <span className="text-slate-300">{eq.name}</span>
-                      <span className="text-[11px] font-mono text-emerald-400 font-semibold">{eq.status}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* Queue Length & Real-time Buffer KPIs */}
-              <div className="p-3.5 rounded-lg bg-[#111929] border border-[#1e2a42] flex flex-col justify-between">
-                <div>
-                  <div className="flex items-center space-x-2 text-slate-200 font-bold mb-2.5">
-                    <Activity className="w-4 h-4 text-[#ff6b00]" />
-                    <span>Hàng Đợi & Nhịp Độ Trạm:</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 shrink-0">
+                      {w.role}
+                    </span>
                   </div>
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between border-b border-[#1c2944] pb-1">
-                      <span className="text-slate-400">Đang chờ xử lý:</span>
-                      <span className="font-mono font-bold text-amber-400">{currStation.queues.waiting} đơn hàng</span>
-                    </div>
-                    <div className="flex justify-between border-b border-[#1c2944] pb-1">
-                      <span className="text-slate-400">Tốc độ hoàn tất:</span>
-                      <span className="font-bold text-emerald-400">{currStation.kpis.speed}</span>
-                    </div>
-                    <div className="flex justify-between border-b border-[#1c2944] pb-1">
-                      <span className="text-slate-400">Trạng thái đệm:</span>
-                      <span className="font-bold text-cyan-300">{currStation.kpis.bufferHealth}</span>
-                    </div>
-                  </div>
-                </div>
-
-                <button
-                  onClick={() => onNavigateTab("simulate")}
-                  className="mt-3 w-full py-1.5 px-3 rounded-lg bg-[#ff6b00] hover:bg-[#ff7b1a] text-white text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-md shadow-[#ff6b00]/30"
-                >
-                  <span>Mô phỏng thử nghiệm What-if trạm này</span>
-                  <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+                ))}
               </div>
             </div>
+
+            {/* Machinery & Equipment Telemetry */}
+            <div className="p-3.5 rounded-lg bg-[#111929] border border-[#1e2a42]">
+              <div className="flex items-center space-x-2 text-slate-200 font-bold mb-2.5">
+                <Gauge className="w-4 h-4 text-emerald-400" />
+                <span>Thiết Bị & Máy Móc Vận Hành:</span>
+              </div>
+              <div className="space-y-2">
+                {currStation.equipment.map((eq: any, idx: number) => (
+                  <div key={idx} className="p-2 rounded bg-[#0d1424] border border-[#1a253a] flex items-center justify-between">
+                    <span className="text-slate-300">{eq.name}</span>
+                    <span className="text-[11px] font-mono text-emerald-400 font-semibold">{eq.status}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Queue Length & Real-time Buffer KPIs */}
+            <div className="p-3.5 rounded-lg bg-[#111929] border border-[#1e2a42] flex flex-col justify-between">
+              <div>
+                <div className="flex items-center space-x-2 text-slate-200 font-bold mb-2.5">
+                  <Activity className="w-4 h-4 text-[#ff6b00]" />
+                  <span>Hàng Đợi & Nhịp Độ Trạm:</span>
+                </div>
+                <div className="space-y-2 text-xs">
+                  <div className="flex justify-between border-b border-[#1c2944] pb-1">
+                    <span className="text-slate-400">Đang chờ xử lý:</span>
+                    <span className="font-mono font-bold text-amber-400">{currStation.queues.waiting} đơn hàng</span>
+                  </div>
+                  <div className="flex justify-between border-b border-[#1c2944] pb-1">
+                    <span className="text-slate-400">Tốc độ hoàn tất:</span>
+                    <span className="font-bold text-emerald-400">{currStation.kpis.speed}</span>
+                  </div>
+                  <div className="flex justify-between border-b border-[#1c2944] pb-1">
+                    <span className="text-slate-400">Trạng thái đệm:</span>
+                    <span className="font-bold text-cyan-300">{currStation.kpis.bufferHealth}</span>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                onClick={() => onNavigateTab("simulate")}
+                className="mt-3 w-full py-1.5 px-3 rounded-lg bg-[#ff6b00] hover:bg-[#ff7b1a] text-white text-xs font-bold transition flex items-center justify-center space-x-1.5 cursor-pointer shadow-md shadow-[#ff6b00]/30"
+              >
+                <span>Mô phỏng thử nghiệm What-if trạm này</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
 
       {/* Storyline Callout & Alerts Section */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

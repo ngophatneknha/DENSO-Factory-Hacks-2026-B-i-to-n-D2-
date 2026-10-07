@@ -413,9 +413,9 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
       <div className="control-panel p-5.5 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 mb-1.5">
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-emerald-500/15 border border-emerald-500/40 text-emerald-400 mb-1.5 font-mono">
               <Scale className="w-3.5 h-3.5" />
-              <span>MODULE 7, 8 & 9: MULTI-STRATEGY ACTION SUITE (HỆ THỐNG ĐA PHƯƠNG ÁN)</span>
+              <span>MULTI-OBJECTIVE STRATEGIC ALTERNATIVES (PARETO)</span>
             </div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
               LỰA CHỌN 4 CHIẾN LƯỢC ĐIỀU PHỐI ĐA MỤC TIÊU (COST · DELAY · SLA · CO2)
@@ -514,9 +514,9 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
       <div className="control-panel p-5.5 relative overflow-hidden bg-gradient-to-r from-[#111a2e] to-[#0f1728]">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-2">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-indigo-500/15 border border-indigo-500/40 text-indigo-400 mb-1.5">
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-indigo-500/15 border border-indigo-500/40 text-indigo-400 mb-1.5 font-mono">
               <Target className="w-3.5 h-3.5" />
-              <span>MODULE 10: COUNTERFACTUAL RECOMMENDATION SOLVER</span>
+              <span>INVERSE SLA RESOURCE SENSITIVITY SOLVER</span>
             </div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
               TRUY VẤN ĐẢO NGƯỢC: CẦN THAY ĐỔI TỐI THIỂU ĐIỀU GÌ ĐỂ SLA ≥ {targetSla}%?
@@ -571,12 +571,12 @@ export const RecommendTab: React.FC<RecommendTabProps> = ({ lang }) => {
       <div className="control-panel p-5.5 relative overflow-hidden">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-3 gap-2">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-purple-500/15 border border-purple-500/40 text-purple-400 mb-1.5">
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-purple-500/15 border border-purple-500/40 text-purple-400 mb-1.5 font-mono">
               <BarChart3 className="w-3.5 h-3.5" />
-              <span>MODULE 20: SCIENTIFIC ABLATION BENCHMARK (5 MATURITY STAGES)</span>
+              <span>DECISION INTELLIGENCE MATURITY BENCHMARK</span>
             </div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
-              BẢNG ĐỐI SÁCH ABLATION NGHIÊN CỨU KHOA HỌC: CHỨNG MINH TÍNH VƯỢT TRỘI CỦA HỆ THỐNG
+              BẢNG ĐỐI THỦ SO SÁNH 5 TẦNG KIẾN TRÚC ĐIỀU ĐỘ (ARCHITECTURE BENCHMARK)
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
               So sánh khách quan 5 tầng công nghệ: Truyền thống → Chỉ dự báo → Dự báo + Mô phỏng → Đề xuất tối ưu → Toàn diện Closed-loop.

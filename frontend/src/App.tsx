@@ -119,17 +119,14 @@ export function App() {
         )}
       </main>
 
-      {/* Floating Logistics Copilot Trigger Button */}
+      {/* Floating Logistics Copilot Trigger Button (Compact Floating FAB) */}
       <button
         onClick={() => setShowCopilot(true)}
-        className="fixed bottom-6 right-6 z-40 px-4 py-2.5 rounded-full bg-gradient-to-r from-blue-600 via-indigo-600 to-[#ff6b00] hover:scale-105 active:scale-95 text-white font-black text-xs transition-all shadow-2xl shadow-indigo-950/80 flex items-center space-x-2 border border-white/20 cursor-pointer group"
+        className="fixed bottom-5 right-5 z-40 w-11 h-11 rounded-full bg-gradient-to-tr from-blue-600 via-indigo-600 to-[#ff6b00] hover:scale-110 active:scale-95 text-white transition-all shadow-xl shadow-indigo-950/80 flex items-center justify-center border border-white/30 cursor-pointer group"
         title="Mở Trợ lý Logistics Copilot AI"
       >
-        <div className="p-1 rounded-full bg-white/20 group-hover:rotate-12 transition">
-          <Bot className="w-4 h-4 text-white" />
-        </div>
-        <span>Hỏi Copilot AI</span>
-        <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+        <Bot className="w-5 h-5 text-white group-hover:rotate-12 transition" />
+        <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-emerald-400 border-2 border-[#0a0e17] animate-pulse"></span>
       </button>
 
       {/* Grounded Logistics Copilot Modal */}

@@ -72,7 +72,7 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
   const t = {
     vi: {
       alertsTitle: "DANH SÁCH CẢNH BÁO ĐIỀU HÀNH & NGUY CƠ NGHẼN",
-      h2Title: "CHỨNG MINH KỸ THUẬT: ĐIỂM NGHẼN THEO TÁC ĐỘNG CAN THIỆP VS MỨC SỬ DỤNG (H2)",
+      h2Title: "PHÂN TÍCH NHẠY CẢM CAN THIỆP & ĐIỂM NGHẼN THỰC CHẤT VS TỶ LỆ SỬ DỤNG",
       h2Desc: "So sánh phương pháp truyền thống (chỉ nhìn tỷ lệ bận rộn - Utilization) với phương pháp can thiệp biên (Intervention Marginal Impact Score) qua mô phỏng SimPy.",
       utilHeader: "Mức sử dụng (Utilization)",
       impactHeader: "Hiệu quả can thiệp (ROI)",
@@ -80,11 +80,11 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
       rankConflictDesc: "Tỷ lệ bận cao nhất không đồng nghĩa với vị trí mang lại ROI can thiệp cao nhất!",
       searchPlaceholder: "Tìm kiếm mã cảnh báo, vị trí, công đoạn...",
       emptyAlerts: "Không tìm thấy cảnh báo nào phù hợp với bộ lọc.",
-      takeawayTitle: "KẾT LUẬN THỰC NGHIỆM KHOA HỌC D2:",
+      takeawayTitle: "KẾT LUẬN ĐIỀU HÀNH VẬN HÀNH D2:",
     },
     en: {
       alertsTitle: "ACTIVE OPERATIONAL ALERTS & BOTTLENECK SIGNALS",
-      h2Title: "TECHNICAL PROOF: INTERVENTION IMPACT BOTTLENECK VS UTILIZATION (H2)",
+      h2Title: "INTERVENTION SENSITIVITY MATRIX · TRUE BOTTLENECK VS UTILIZATION",
       h2Desc: "Comparing traditional utilization heuristics with simulation marginal intervention impact.",
       utilHeader: "Resource Utilization",
       impactHeader: "Intervention Impact ROI",
@@ -92,7 +92,7 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
       rankConflictDesc: "Highest utilization stage does not guarantee highest marginal return on intervention!",
       searchPlaceholder: "Search alert id, station, stage...",
       emptyAlerts: "No alerts match your filter criteria.",
-      takeawayTitle: "SCIENTIFIC EXPERIMENTAL TAKEAWAY:",
+      takeawayTitle: "OPERATIONAL INTERVENTION TAKEAWAY:",
     },
   }[lang];
 
@@ -127,9 +127,9 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
       <div className="control-panel p-5.5 relative overflow-hidden">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-4 gap-3">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-[#ff6b00]/15 border border-[#ff6b00]/40 text-[#ff8f3d] mb-1.5">
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-[#ff6b00]/15 border border-[#ff6b00]/40 text-[#ff8f3d] mb-1.5 font-mono">
               <Zap className="w-3.5 h-3.5" />
-              <span>ĐÓNG GÓP KHOA HỌC CỐT LÕI (GIẢ THUYẾT H2)</span>
+              <span>INTERVENTION SENSITIVITY & MARGINAL IMPACT MATRIX</span>
             </div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
               {t.h2Title}
@@ -260,9 +260,9 @@ export const DetectTab: React.FC<DetectTabProps> = ({ alerts, lang }) => {
       <div className="control-panel p-5.5 relative overflow-hidden">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-4 gap-3">
           <div>
-            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-blue-500/15 border border-blue-500/40 text-blue-400 mb-1.5">
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded text-[10px] font-extrabold bg-blue-500/15 border border-blue-500/40 text-blue-400 mb-1.5 font-mono">
               <GitBranch className="w-3.5 h-3.5" />
-              <span>MODULE 4 & 5: ROOT-CAUSE ATTRIBUTION & CAUSAL GRAPH (SHAP PROXY)</span>
+              <span>CAUSAL ATTRIBUTION & SHAP ROOT-CAUSE EXPLAINABILITY</span>
             </div>
             <h2 className="text-xs font-bold uppercase tracking-wider text-slate-200">
               ĐỊNH LƯỢNG NGUYÊN NHÂN GỐC RỄ & CÂY LAN TRUYỀN NGHẼN NỘI BỘ

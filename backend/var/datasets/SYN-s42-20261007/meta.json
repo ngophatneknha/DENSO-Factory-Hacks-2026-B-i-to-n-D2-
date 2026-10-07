@@ -4,11 +4,11 @@
   "readiness": "D0",
   "seed": 42,
   "now": "2026-10-07T06:00:00",
-  "history_start": "2026-07-15T06:00:00",
+  "history_start": "2025-10-07T06:00:00",
   "future_end": "2026-10-09T06:00:00",
-  "n_requests": 70677,
-  "n_events": 424028,
+  "n_requests": 306118,
+  "n_events": 1836683,
   "sim_logic_errors": [],
-  "generated_seconds": 3.9,
+  "generated_seconds": 56.7,
   "storyline": "S2 plan +30% on L1/L2 (new model ramp-up); TG3 planned maintenance 13:00-16:00"
 }
