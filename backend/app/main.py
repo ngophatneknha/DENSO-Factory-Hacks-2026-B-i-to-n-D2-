@@ -50,6 +50,11 @@ predict_engine = PredictEngine()
 @app.on_event("startup")
 def on_startup():
     init_db()
+    try:
+        from .init_data import ensure_initial_dataset
+        ensure_initial_dataset()
+    except Exception as e:
+        print(f"[startup] ensure_initial_dataset note: {e}")
 
 
 # ==============================================================================
