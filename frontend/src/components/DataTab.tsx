@@ -21,11 +21,14 @@ import {
 } from "lucide-react";
 import { QualityProfile, triggerGenerate, uploadDataset, browseTable, BrowseTableResponse } from "../api";
 
+import { ExternalSimConfig } from "./SimulateTab";
+
 interface DataTabProps {
   currentData: any;
   quality: QualityProfile | null;
   onRefreshData: () => void;
   lang: "vi" | "en";
+  onLaunchSimulation?: (config: ExternalSimConfig) => void;
 }
 
 export const DataTab: React.FC<DataTabProps> = ({
@@ -33,11 +36,18 @@ export const DataTab: React.FC<DataTabProps> = ({
   quality,
   onRefreshData,
   lang,
+  onLaunchSimulation,
 }) => {
   const [seed, setSeed] = useState(42);
   const [historyDays, setHistoryDays] = useState(84);
   const [generating, setGenerating] = useState(false);
   const [uploadStatus, setUploadStatus] = useState<string | null>(null);
+
+  // Live Factory Tour Time-Study Calibration Sandbox State
+  const [calCycleMin, setCalCycleMin] = useState<number>(15);
+  const [calExtraLoaders, setCalExtraLoaders] = useState<number>(1);
+  const [calPriority, setCalPriority] = useState<"FIFO" | "EDD">("EDD");
+  const [calSurgePct, setCalSurgePct] = useState<number>(30);
 
   // Data Explorer State
   const [activeTable, setActiveTable] = useState<string>("requests");
@@ -51,8 +61,8 @@ export const DataTab: React.FC<DataTabProps> = ({
       title: "QUẢN LÝ DỮ LIỆU & BÁO CÁO KIỂM CHUẨN CHẤT LƯỢNG (DATA QUALITY PROFILING)",
       readinessTitle: "MỨC ĐỘ SẴN SÀNG CỦA DỮ LIỆU (DATA READINESS LEVEL D0 - D3)",
       syntheticCard: "BỘ SINH DỮ LIỆU TỔNG HỢP NỘI BỘ (INTRALOGISTICS GENERATOR)",
-      uploadTitle: "NẠP DỮ LIỆU THỰC TẾ TỪ NHÀ MÁY (CSV / EXCEL)",
-      templateBtn: "Tải file mẫu Excel chuẩn",
+      uploadTitle: "NẠP 5 FILE EXCEL THỰC TẾ TỪ NHÀ MÁY DMVN (CSV / 5-SHEET XLSX)",
+      templateBtn: "Tải bộ 5 Sheet Excel chuẩn DMVN",
       generateBtn: "Tạo mới dữ liệu tổng hợp (Parquet)",
       stepperD0: "D0: Tổng hợp (Synthetic)",
       stepperD1: "D1: Kết nối Log thực",
@@ -195,6 +205,121 @@ export const DataTab: React.FC<DataTabProps> = ({
             <div className="text-[11px] text-slate-400">
               Đánh đổi Pareto & CVaR90, nhật ký phê duyệt điều phối tự động lưu vào sổ cái kiểm toán.
             </div>
+          </div>
+        </div>
+      </div>
+
+      {/* SLIDE 22: 4 LỚP DỮ LIỆU ĐẦU VÀO BẮT BUỘC (4 MANDATORY INPUT LAYERS) */}
+      <div className="control-panel p-5.5 border border-cyan-500/30 bg-gradient-to-r from-[#0e182a] via-[#0c1424] to-[#101a2e] space-y-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2 border-b border-[#223454] pb-3">
+          <div>
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 mb-1 font-mono">
+              <Layers className="w-3.5 h-3.5" />
+              <span>SLIDE 22 · CHUẨN HÓA 4 LỚP INPUT BẮT BUỘC CỦA BAN TỔ CHỨC DENSO</span>
+            </div>
+            <h3 className="text-xs font-black uppercase tracking-wider text-white">
+              CẤU TRÚC 4 LỚP DỮ LIỆU ĐẦU VÀO: THIẾT BỊ · NGHIỆP VỤ · TRI THỨC NGƯỜI VẬN HÀNH · BỘ 30 CA TEST CỐ ĐỊNH
+            </h3>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Nhấp vào từng lớp dữ liệu bên dưới để mở trực tiếp bảng bản ghi tương ứng trong Trình khám phá Parquet phía dưới.
+            </p>
+          </div>
+          <span className="shrink-0 font-mono text-[11px] px-3 py-1 rounded-lg bg-[#09111e] border border-[#1f3150] text-emerald-400">
+            Schema chuẩn hóa 100% · Chống rò rỉ tương lai
+          </span>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 text-xs">
+          {/* Layer 1: Machine / Sensor Data */}
+          <div
+            onClick={() => { setActiveTable("process_events"); setPage(1); }}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              activeTable === "process_events"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#213252] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-extrabold text-cyan-300">LỚP 1: DỮ LIỆU THIẾT BỊ</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                424k bản ghi
+              </span>
+            </div>
+            <div className="text-white font-bold mb-1">Log AGV/AMR, Tàu kéo, GTP & Dock</div>
+            <ul className="text-[11px] text-slate-300 space-y-0.5 list-disc pl-4">
+              <li><b>Tần suất lấy mẫu:</b> 15 giây / gói tin</li>
+              <li><b>Nhãn thời gian:</b> ISO-8601 (Phút trong ca)</li>
+              <li><b>Đơn vị đo:</b> Phút chuẩn, Số khay, % Pin</li>
+            </ul>
+          </div>
+
+          {/* Layer 2: Business Data */}
+          <div
+            onClick={() => { setActiveTable("production_plan"); setPage(1); }}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              activeTable === "production_plan"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#213252] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-extrabold text-emerald-300">LỚP 2: DỮ LIỆU NGHIỆP VỤ</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                6.7k ca SX
+              </span>
+            </div>
+            <div className="text-white font-bold mb-1">Kế hoạch SX, BOM & Chuẩn SLA</div>
+            <ul className="text-[11px] text-slate-300 space-y-0.5 list-disc pl-4">
+              <li><b>Kế hoạch SX & BOM:</b> Nhịp Takt 4 chuyền L1–L4</li>
+              <li><b>Tiêu chuẩn 'Đạt' (Pass):</b> Giao trước Due Time (SLA ≥ 95%)</li>
+              <li><b>Quy tắc ưu tiên:</b> FIFO vs. EDD theo độ khẩn</li>
+            </ul>
+          </div>
+
+          {/* Layer 3: Human Know-How */}
+          <div
+            onClick={() => { setActiveTable("resources"); setPage(1); }}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              activeTable === "resources"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#213252] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-extrabold text-amber-300">LỚP 3: TRI THỨC VẬN HÀNH</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                27 nguồn lực
+              </span>
+            </div>
+            <div className="text-white font-bold mb-1">Ca kíp, Kỹ năng chéo & Biểu mẫu</div>
+            <ul className="text-[11px] text-slate-300 space-y-0.5 list-disc pl-4">
+              <li><b>Ma trận đa kỹ năng:</b> Picker NV-04/06 kiêm Loader</li>
+              <li><b>Lịch nghỉ & Bảo trì:</b> Nghỉ giữa ca, TG-03 bảo dưỡng</li>
+              <li><b>Biểu mẫu hiện trường:</b> Phiếu lệnh điều độ chuẩn</li>
+            </ul>
+          </div>
+
+          {/* Layer 4: Fixed Benchmark Test Set */}
+          <div
+            onClick={() => { setActiveTable("requests"); setPage(1); }}
+            className={`p-3.5 rounded-xl border transition cursor-pointer ${
+              activeTable === "requests"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#213252] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1.5">
+              <span className="font-extrabold text-purple-300">LỚP 4: BỘ KIỂM THỬ CHUẨN</span>
+              <span className="font-mono text-[10px] px-1.5 py-0.2 rounded bg-purple-950 text-purple-300 border border-purple-800">
+                30 Ca Cố định
+              </span>
+            </div>
+            <div className="text-white font-bold mb-1">Fixed Benchmark (Cố định trước khi code)</div>
+            <ul className="text-[11px] text-slate-300 space-y-0.5 list-disc pl-4">
+              <li><b>10 Ca bình thường:</b> Kiểm tra độ ổn định (0 cảnh báo giả)</li>
+              <li><b>12 Ca cao điểm (+30%):</b> Đổi mẫu L1/L2 giờ đỉnh</li>
+              <li><b>08 Ca sự cố kép:</b> Bảo trì TG-03 + thiếu nhân sự Dock</li>
+            </ul>
           </div>
         </div>
       </div>
@@ -401,6 +526,174 @@ export const DataTab: React.FC<DataTabProps> = ({
             <RefreshCw className={`w-4 h-4 ${generating ? "animate-spin" : ""}`} />
             <span>{generating ? "Đang sinh dữ liệu SimPy (khoảng 3.5 giây)..." : t.generateBtn}</span>
           </button>
+        </div>
+      </div>
+
+      {/* SLIDE 22 (OUTPUT 3) & SLIDE 25: TÀI LIỆU TÁI LẬP (GIẢ ĐỊNH A01–A06 & GIỚI HẠN BIẾT TRƯỚC) & PHIẾU BẤM GIỜ THỰC ĐỊA FACTORY TOUR */}
+      <div className="control-panel p-5.5 border border-amber-500/30 bg-gradient-to-r from-[#141828] via-[#0e1424] to-[#12182b] space-y-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2 border-b border-[#243554] pb-3">
+          <div>
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-amber-500/15 border border-amber-500/40 text-amber-300 mb-1 font-mono">
+              <Clock className="w-3.5 h-3.5" />
+              <span>OUTPUT 3 · SLIDE 22 & SLIDE 25: REPRODUCIBILITY, ASSUMPTIONS & FACTORY TOUR CHECKLIST</span>
+            </div>
+            <h3 className="text-xs font-black uppercase tracking-wider text-white">
+              DANH MỤC GIẢ ĐỊNH TÁI LẬP (A01–A06), GIỚI HẠN BIẾT TRƯỚC & PHIẾU BẤM GIỜ THỰC ĐỊA TẠI FACTORY TOUR DMVN
+            </h3>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Mọi thông số giả định đều được tách bạch trong file cấu hình. Khi xuống nhà máy DMVN trong buổi <b>Factory Tour (Slide 25)</b>, đội thi chỉ cần bấm giờ thực tế và nhập đè vào bảng dưới đây trong 5 phút mà không phải sửa mã nguồn.
+            </p>
+          </div>
+          <span className="shrink-0 font-mono text-[11px] px-3 py-1 rounded-lg bg-[#09101d] border border-amber-700/50 text-amber-300">
+            Sẵn sàng hiệu chuẩn thực địa tại DMVN
+          </span>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-[#233554]">
+          <table className="w-full text-xs text-left border-collapse">
+            <thead>
+              <tr className="border-b border-[#233554] text-slate-200 bg-[#141f36]">
+                <th className="py-2.5 px-3 font-bold w-20">Mã</th>
+                <th className="py-2.5 px-3 font-bold">Tham số Vận hành Nội khu</th>
+                <th className="py-2.5 px-3 font-bold text-cyan-300">Giá trị Giả định Hiện tại (D0)</th>
+                <th className="py-2.5 px-3 font-bold text-amber-300">Vị trí Bấm giờ & Thu thập tại Factory Tour (Slide 25)</th>
+                <th className="py-2.5 px-3 font-bold text-slate-300">Giới hạn Biết trước (Known Limitations)</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-[#1c2b47] bg-[#0b1322]/90">
+              <tr className="hover:bg-[#15223a]/60">
+                <td className="py-2 px-3 font-mono font-bold text-amber-400">A01</td>
+                <td className="py-2 px-3 font-semibold text-white">Chu kỳ vòng lặp Tàu kéo Milk-run</td>
+                <td className="py-2 px-3 font-mono text-cyan-300">20 phút / vòng (Rút ngắn: 15p)</td>
+                <td className="py-2 px-3 text-slate-200">Bấm giờ thực tế 1 vòng tàu kéo từ Kho SMKT qua 4 chuyền L1–L4</td>
+                <td className="py-2 px-3 text-slate-400">Chưa tính độ trễ giao cắt người đi bộ qua hành lang phụ</td>
+              </tr>
+              <tr className="hover:bg-[#15223a]/60">
+                <td className="py-2 px-3 font-mono font-bold text-amber-400">A02</td>
+                <td className="py-2 px-3 font-semibold text-white">Năng suất trạm GTP & Kitting</td>
+                <td className="py-2 px-3 font-mono text-cyan-300">145 khay GTP/h · 3.4 phút/đơn</td>
+                <td className="py-2 px-3 text-slate-200">Đo thời gian thao tác của công nhân tại bàn Pick-to-Light & trạm GTP</td>
+                <td className="py-2 px-3 text-slate-400">Giả định tỷ lệ lỗi quét mã vạch cố định ở mức 0.5%</td>
+              </tr>
+              <tr className="hover:bg-[#15223a]/60">
+                <td className="py-2 px-3 font-mono font-bold text-amber-400">A03</td>
+                <td className="py-2 px-3 font-semibold text-white">Thời gian bốc xếp tại Cổng Dock</td>
+                <td className="py-2 px-3 font-mono text-cyan-300">4.8 phút / chuyến (LogNormal)</td>
+                <td className="py-2 px-3 text-slate-200">Bấm giờ thao tác của Loader và xe nâng Forklift tại khu vực Dock</td>
+                <td className="py-2 px-3 text-slate-400">Phụ thuộc kích thước kiện hàng (Bin vs. Pallet nặng)</td>
+              </tr>
+              <tr className="hover:bg-[#15223a]/60">
+                <td className="py-2 px-3 font-mono font-bold text-amber-400">A04</td>
+                <td className="py-2 px-3 font-semibold text-white">Sức chở tối đa mỗi chuyến xe kéo</td>
+                <td className="py-2 px-3 font-mono text-cyan-300">08 đơn hàng (Trolley/Bin) / chuyến</td>
+                <td className="py-2 px-3 text-slate-200">Đếm số rơ-moóc kéo theo quy định an toàn nội bộ của DMVN</td>
+                <td className="py-2 px-3 text-slate-400">Quy đổi đồng nhất theo đơn vị tương đương chuẩn (EQ)</td>
+              </tr>
+              <tr className="hover:bg-[#15223a]/60">
+                <td className="py-2 px-3 font-mono font-bold text-amber-400">A05</td>
+                <td className="py-2 px-3 font-semibold text-white">Thời gian chuyển vị trí nhân sự đa năng</td>
+                <td className="py-2 px-3 font-mono text-cyan-300">05 phút đi bộ & bàn giao vị trí</td>
+                <td className="py-2 px-3 text-slate-200">Phỏng vấn Tổ trưởng PC&L về quy trình điều người từ Kitting sang Dock</td>
+                <td className="py-2 px-3 text-slate-400">Chỉ áp dụng cho nhân sự đã có chứng chỉ kỹ năng chéo</td>
+              </tr>
+              <tr className="hover:bg-[#15223a]/60">
+                <td className="py-2 px-3 font-mono font-bold text-amber-400">A06</td>
+                <td className="py-2 px-3 font-semibold text-white">Ngưỡng cảnh báo quá tải công đoạn</td>
+                <td className="py-2 px-3 font-mono text-cyan-300">85% (Vàng) · 95% (Đỏ khẩn cấp)</td>
+                <td className="py-2 px-3 text-slate-200">Đối chiếu với tiêu chuẩn bảng Andon hiện hành tại phân xưởng DMVN</td>
+                <td className="py-2 px-3 text-slate-400">Cần tối thiểu 2 tuần dữ liệu thực để hiệu chỉnh Conformal CQR</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        {/* Interactive Factory Tour Time-Study Calibration Sandbox */}
+        <div className="p-4 rounded-xl bg-[#09111f] border border-amber-500/40 space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+            <div>
+              <div className="text-xs font-extrabold text-amber-300 uppercase flex items-center space-x-1.5">
+                <Cpu className="w-3.5 h-3.5 text-amber-400" />
+                <span>BÀN HIỆU CHUẨN NHANH SỐ ĐO BẤM GIỜ THỰC ĐỊA (FACTORY TOUR TIME-STUDY SANDBOX)</span>
+              </div>
+              <div className="text-[11px] text-slate-300 mt-0.5">
+                Sau khi ghi nhận số đo bấm giờ tại phân xưởng DMVN, điều chỉnh trực tiếp các thông số A01–A05 bên dưới và bấm <b>Áp dụng & Chạy Kiểm chứng SimPy</b>.
+              </div>
+            </div>
+            {onLaunchSimulation && (
+              <button
+                onClick={() =>
+                  onLaunchSimulation({
+                    priority: calPriority,
+                    cycleMin: calCycleMin,
+                    extraPickers: 0,
+                    extraLoaders: calExtraLoaders,
+                    extraTuggers: 0,
+                    demandSurge: calSurgePct,
+                    label: `Hiệu chuẩn Factory Tour (A01=${calCycleMin}p, A05=+${calExtraLoaders} Loader, ${calPriority}, Tải +${calSurgePct}%)`,
+                  })
+                }
+                className="px-4 py-2 rounded-xl bg-[#ff6b00] hover:bg-[#ff7b1a] text-white text-xs font-extrabold transition cursor-pointer flex items-center space-x-1.5 shadow-md shadow-[#ff6b00]/25 shrink-0"
+              >
+                <span>Áp dụng & Chạy Kiểm chứng SimPy</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+            <div className="p-2.5 rounded-lg bg-[#121c30] border border-[#243656]">
+              <label className="text-slate-300 font-semibold block mb-1">A01 · Chu kỳ Tàu kéo thực địa:</label>
+              <select
+                value={calCycleMin}
+                onChange={(e) => setCalCycleMin(Number(e.target.value))}
+                className="w-full bg-[#0c1322] border border-[#2c3f63] rounded px-2.5 py-1.5 text-cyan-300 font-mono font-bold"
+              >
+                <option value={10}>10 phút / vòng (Tuyến ngắn)</option>
+                <option value={15}>15 phút / vòng (Tối ưu Milk-run)</option>
+                <option value={20}>20 phút / vòng (Chuẩn hiện tại)</option>
+                <option value={30}>30 phút / vòng (Tuyến xa)</option>
+              </select>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#121c30] border border-[#243656]">
+              <label className="text-slate-300 font-semibold block mb-1">A05 · Nhân sự đa năng sang Dock:</label>
+              <select
+                value={calExtraLoaders}
+                onChange={(e) => setCalExtraLoaders(Number(e.target.value))}
+                className="w-full bg-[#0c1322] border border-[#2c3f63] rounded px-2.5 py-1.5 text-emerald-300 font-mono font-bold"
+              >
+                <option value={0}>+0 Loader (Giữ nguyên 2 người)</option>
+                <option value={1}>+1 Loader (Điều NV-04 sang Dock)</option>
+                <option value={2}>+2 Loaders (Tăng cường tối đa)</option>
+              </select>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#121c30] border border-[#243656]">
+              <label className="text-slate-300 font-semibold block mb-1">A02 · Quy tắc xuất hàng Kitting:</label>
+              <select
+                value={calPriority}
+                onChange={(e) => setCalPriority(e.target.value as "FIFO" | "EDD")}
+                className="w-full bg-[#0c1322] border border-[#2c3f63] rounded px-2.5 py-1.5 text-amber-300 font-mono font-bold"
+              >
+                <option value="EDD">EDD (Ưu tiên hạn giao gấp)</option>
+                <option value="FIFO">FIFO (Đến trước làm trước)</option>
+              </select>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-[#121c30] border border-[#243656]">
+              <label className="text-slate-300 font-semibold block mb-1">Phụ tải ca kiểm thử tại xưởng:</label>
+              <select
+                value={calSurgePct}
+                onChange={(e) => setCalSurgePct(Number(e.target.value))}
+                className="w-full bg-[#0c1322] border border-[#2c3f63] rounded px-2.5 py-1.5 text-white font-mono font-bold"
+              >
+                <option value={0}>Bình thường (Baseline 0%)</option>
+                <option value={20}>Tăng tải +20%</option>
+                <option value={30}>Storyline Đề bài (+30%)</option>
+                <option value={40}>Stress Test (+40%)</option>
+              </select>
+            </div>
+          </div>
         </div>
       </div>
     </div>

@@ -4,11 +4,11 @@
   "readiness": "D0",
   "seed": 42,
   "now": "2026-10-07T06:00:00",
-  "history_start": "2025-10-07T06:00:00",
+  "history_start": "2026-07-15T06:00:00",
   "future_end": "2026-10-09T06:00:00",
-  "n_requests": 306118,
-  "n_events": 1836683,
+  "n_requests": 70677,
+  "n_events": 424028,
   "sim_logic_errors": [],
-  "generated_seconds": 56.7,
-  "storyline": "S2 plan +30% on L1/L2 (new model ramp-up); TG3 planned maintenance 13:00-16:00"
+  "generated_seconds": 5.2,
+  "storyline": "Ca S1 (06:00-14:00): \u0110\u01a1n h\u00e0ng L1/L2 t\u0103ng \u0111\u1ed9t bi\u1ebfn +30% khung 09:00-12:00 k\u1ebft h\u1ee3p T\u00e0u k\u00e9o TG-03 b\u1ea3o d\u01b0\u1ee1ng \u0111\u1ecbnh k\u1ef3 10:00-12:00"
 }

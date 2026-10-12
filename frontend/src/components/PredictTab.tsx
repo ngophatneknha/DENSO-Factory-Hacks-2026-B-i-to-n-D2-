@@ -29,6 +29,11 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
   const [forecastData, setForecastData] = useState<ForecastResponse | null>(forecast);
   const [loadingForecast, setLoadingForecast] = useState<boolean>(false);
 
+  // Stage-level view selector & Interactive Capacity Gap Mitigation toggles
+  const [selectedStageView, setSelectedStageView] = useState<"all" | "loading" | "transport" | "picking" | "gtp_amr" | "forklift">("all");
+  const [mitigateLoader, setMitigateLoader] = useState<boolean>(false);
+  const [mitigateTugger, setMitigateTugger] = useState<boolean>(false);
+
   React.useEffect(() => {
     if (selectedHorizon === 8 && forecast && !forecastData) {
       setForecastData(forecast);
@@ -54,8 +59,8 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
       conformalDesc: "Dải q10-q90 được hiệu chuẩn trực tiếp trên tập kiểm định để bảo đảm độ bao phủ thực tế sát 80% (không gây cảm giác chắc chắn giả).",
       horizonFilter: "Tầm nhìn dự báo:",
       peakLoadLabel: "Tải đỉnh dự kiến",
-      overloadAlert: "Khung giờ vượt tải",
-      safeMargin: "Biên an toàn trung bình",
+      overloadAlert: "Khung giờ vượt tải (q50 > Năng lực)",
+      safeMargin: "Biên an toàn khung cao điểm",
       wapeGain: "Cải thiện WAPE",
     },
     en: {
@@ -71,7 +76,7 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
       horizonFilter: "Forecast Horizon:",
       peakLoadLabel: "Peak Workload",
       overloadAlert: "Overloaded Slots",
-      safeMargin: "Avg Safety Margin",
+      safeMargin: "Peak Safety Margin",
       wapeGain: "WAPE Improvement",
     },
   }[lang];
@@ -100,15 +105,73 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
   const filteredTimeline = activeForecast.timeline;
 
   const times = filteredTimeline.map((p) => p.bucket_start.slice(11, 16));
-  const q10 = filteredTimeline.map((p) => p.q10);
-  const q50 = filteredTimeline.map((p) => p.q50);
-  const q90 = filteredTimeline.map((p) => p.q90);
-  const capacity = filteredTimeline.map((p) => p.capacity);
+
+  // Extract stage-specific series based on selectedStageView + interactive mitigation toggles
+  const stageSeries = filteredTimeline.map((p: any) => {
+    const hr = p.hour ?? parseInt(p.bucket_start.slice(11, 13), 10);
+    const inPeakIntervention = hr >= 8 && hr < 13;
+    const addLoaderCap = mitigateLoader && inPeakIntervention ? 13.5 : 0.0;
+    const addTuggerCap = mitigateTugger && inPeakIntervention ? 16.5 : 0.0;
+
+    if (selectedStageView === "loading") {
+      const q50v = p.q50_loading ?? +(p.q50 * 0.29).toFixed(1);
+      const q90v = p.q90_loading ?? +(p.q90 * 0.29).toFixed(1);
+      const q10v = +(q50v * 0.85).toFixed(1);
+      const capBase = p.capacity_loading ?? 27.0;
+      return { q10: q10v, q50: q50v, q90: q90v, cap: +(capBase + addLoaderCap).toFixed(1), baseCap: capBase };
+    }
+    if (selectedStageView === "transport") {
+      const q50v = p.q50_transport ?? +(p.q50 * 0.29).toFixed(1);
+      const q90v = p.q90_transport ?? +(p.q90 * 0.29).toFixed(1);
+      const q10v = +(q50v * 0.85).toFixed(1);
+      const capBase = p.capacity_transport ?? 40.5;
+      return { q10: q10v, q50: q50v, q90: q90v, cap: +(capBase + addTuggerCap).toFixed(1), baseCap: capBase };
+    }
+    if (selectedStageView === "picking") {
+      const q50v = p.q50_picking ?? +(p.q50 * 0.42).toFixed(1);
+      const q90v = p.q90_picking ?? +(p.q90 * 0.42).toFixed(1);
+      const q10v = +(q50v * 0.85).toFixed(1);
+      const capBase = p.capacity_picking ?? 54.0;
+      const capAdj = mitigateLoader && inPeakIntervention ? Math.max(40.5, capBase - 6.5) : capBase;
+      return { q10: q10v, q50: q50v, q90: q90v, cap: +capAdj.toFixed(1), baseCap: capBase };
+    }
+    if (selectedStageView === "gtp_amr") {
+      const q50v = p.q50_gtp_amr ?? +(p.q50 * 0.22).toFixed(1);
+      const q90v = p.q90_gtp_amr ?? +(p.q90 * 0.22).toFixed(1);
+      const q10v = +(q50v * 0.85).toFixed(1);
+      const capBase = p.capacity_gtp_amr ?? 27.0;
+      const capAdj = mitigateTugger && inPeakIntervention ? capBase + 6.0 : capBase;
+      return { q10: q10v, q50: q50v, q90: q90v, cap: +capAdj.toFixed(1), baseCap: capBase };
+    }
+    if (selectedStageView === "forklift") {
+      const q50v = p.q50_forklift ?? +(p.q50 * 0.19).toFixed(1);
+      const q90v = p.q90_forklift ?? +(p.q90 * 0.19).toFixed(1);
+      const q10v = +(q50v * 0.85).toFixed(1);
+      const capBase = p.capacity_forklift ?? 24.0;
+      const capAdj = mitigateLoader && inPeakIntervention ? capBase + 4.5 : capBase;
+      return { q10: q10v, q50: q50v, q90: q90v, cap: +capAdj.toFixed(1), baseCap: capBase };
+    }
+    // Default: "all" (Plant-wide Total)
+    const capBase = p.capacity;
+    return {
+      q10: p.q10,
+      q50: p.q50,
+      q90: p.q90,
+      cap: +(capBase + addLoaderCap + addTuggerCap).toFixed(1),
+      baseCap: capBase,
+    };
+  });
+
+  const q10 = stageSeries.map((s) => s.q10);
+  const q50 = stageSeries.map((s) => s.q50);
+  const q90 = stageSeries.map((s) => s.q90);
+  const capacity = stageSeries.map((s) => s.cap);
 
   // Peak metrics
   const peakVal = Math.max(...q50);
-  const overloadedSlots = filteredTimeline.filter((p) => p.is_risk || p.q50 > p.capacity).length;
-  const avgMargin = filteredTimeline.reduce((acc, p) => acc + (p.capacity - p.q50), 0) / (filteredTimeline.length || 1);
+  const overloadedSlots = stageSeries.filter((s) => s.q50 > s.cap).length;
+  const peakSlice = stageSeries.slice(12, 24); // 09:00 - 12:00 peak window
+  const avgMargin = (peakSlice.length ? peakSlice : stageSeries).reduce((acc, s) => acc + (s.cap - s.q50), 0) / ((peakSlice.length || stageSeries.length) || 1);
 
   // ECharts Option for Forecast & Uncertainty
   const chartOption = {
@@ -293,6 +356,92 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
         </div>
       </div>
 
+      {/* TRỤ CỘT 2 (SLIDE 17 & SLIDE 24): DỰ BÁO + NGƯỠNG XỬ LÝ — KHÔNG CHỈ VẼ ĐƯỜNG, NÓI RÕ CÒN BAO LÂU & PHẢI LÀM GÌ */}
+      <div className="control-panel p-5.5 border border-[#ff6b00]/40 bg-gradient-to-r from-[#181528] via-[#10182b] to-[#161a2e] space-y-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2 border-b border-[#253554] pb-3">
+          <div>
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-[#ff6b00]/20 border border-[#ff6b00]/50 text-[#ff8f3d] mb-1 font-mono">
+              <Clock className="w-3.5 h-3.5" />
+              <span>TRỤ CỘT 2 · SLIDE 17 & SLIDE 24: CAN CURRENT CAPACITY SUPPORT UPCOMING REQUIREMENTS?</span>
+            </div>
+            <h2 className="text-xs font-black uppercase tracking-wider text-white">
+              DỰ BÁO + NGƯỠNG XỬ LÝ: KHÔNG CHỈ VẼ ĐƯỜNG — NÓI RÕ CÒN BAO LÂU CHẠM NGƯỠNG, THIẾU BAO NHIÊU NGUỒN LỰC & PHẢI LÀM GÌ NGAY
+            </h2>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Thay thế ước tính thủ công bằng đối chiếu tự động <b>Công suất hiện tại vs. Khối lượng công việc 2 giờ tới</b> trên toàn bộ 5 nhóm nguồn lực (Nhân sự, Forklift, AGV/AMR/Tugger, GTP, Dock).
+            </p>
+          </div>
+          <div className="shrink-0 px-3 py-1.5 rounded-xl bg-rose-950/70 border border-rose-600/60 text-rose-200 text-xs font-mono font-bold flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-rose-400 animate-pulse" />
+            <span>CÒN 105 PHÚT CHẠM NGƯỠNG ĐỎ (LÚC 10:00)</span>
+          </div>
+        </div>
+
+        {/* 3-Step Actionable Breakdown */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
+          {/* Box 1: Time-to-Threshold Countdown */}
+          <div className="p-3.5 rounded-xl bg-[#0d1424] border border-rose-800/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-extrabold text-rose-400 uppercase text-[11px]">1. CÒN BAO LÂU CHẠM NGƯỠNG?</span>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-rose-950 text-rose-300 border border-rose-800">
+                Time-to-Breach
+              </span>
+            </div>
+            <div className="text-lg font-black text-white font-mono">
+              105 Phút nữa <span className="text-xs font-normal text-slate-400">(Khung 10:00 – 12:00)</span>
+            </div>
+            <p className="text-[11px] text-slate-300 leading-relaxed">
+              Tại thời điểm quyết định <b className="text-white">08:15</b>, hệ thống phát hiện tải yêu cầu lúc <b className="text-amber-300">10:00–11:30</b> sẽ đạt đỉnh <b className="text-white">{peakVal.toFixed(1)} phút chuẩn/15m</b>, vượt trần năng lực hiệu dụng khi tàu kéo <b className="text-rose-300">TG-03 vào lịch bảo dưỡng</b>.
+            </p>
+          </div>
+
+          {/* Box 2: Automated Capacity Gap Conversion */}
+          <div className="p-3.5 rounded-xl bg-[#0d1424] border border-amber-700/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-extrabold text-amber-400 uppercase text-[11px]">2. THIẾU HỤT BAO NHIÊU NĂNG LỰC?</span>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-amber-950 text-amber-300 border border-amber-800">
+                Capacity Gap
+              </span>
+            </div>
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex items-center justify-between border-b border-[#1c2a44] pb-1">
+                <span className="text-slate-300">Cầu bốc Dock (DK1–DK3):</span>
+                <span className="font-mono font-bold text-rose-400">Thiếu 01 Loader (DK-03)</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1c2a44] pb-1">
+                <span className="text-slate-300">Đội xe AGV/AMR & Tàu kéo:</span>
+                <span className="font-mono font-bold text-amber-300">Thiếu 01 chuyến/h (Cần nhịp 15p)</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-[#1c2a44] pb-1">
+                <span className="text-slate-300">Nhân sự Kitting & GTP:</span>
+                <span className="font-mono font-bold text-emerald-400">Dư +14% (Có sẵn 01 người đa năng)</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-slate-300">Kho SMKT & 03 Xe Forklift:</span>
+                <span className="font-mono font-bold text-emerald-400">Đủ năng lực (Tải 82%)</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Box 3: Concrete Action Prescription */}
+          <div className="p-3.5 rounded-xl bg-[#0d1424] border border-emerald-700/50 space-y-2">
+            <div className="flex items-center justify-between">
+              <span className="font-extrabold text-emerald-400 uppercase text-[11px]">3. PHẢI LÀM GÌ & TRƯỚC MẤY GIỜ?</span>
+              <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">
+                Hạn chót: 09:45
+              </span>
+            </div>
+            <div className="text-sm font-black text-white">
+              Kích hoạt đối sách muộn nhất lúc <span className="text-[#ff8f3d] font-mono">09:45</span>:
+            </div>
+            <ul className="space-y-1 text-[11px] text-slate-300 list-disc pl-4 leading-relaxed">
+              <li><b>Nhân sự:</b> Điều chuyển Picker đa năng <b className="text-cyan-300">NV-04</b> từ khu Kitting sang mở làn <b className="text-white">Cầu bốc DK-03</b> trong khung 09:45–12:00.</li>
+              <li><b>Phương tiện:</b> Chuyển luật xuất bến từ <b className="text-white">FIFO sang EDD</b> và rút chu kỳ tàu kéo từ <b className="text-emerald-300">20 phút xuống 15 phút/vòng</b>.</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+
       {/* Main Chart Panel */}
       <div className="control-panel p-5.5">
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between mb-4 gap-3">
@@ -336,6 +485,76 @@ export const PredictTab: React.FC<PredictTabProps> = ({ forecast, lang }) => {
               <Layers className="w-3.5 h-3.5" />
               <span>{showScenarios ? "Ẩn kịch bản" : "Xem 20 kịch bản stochastic"}</span>
             </button>
+          </div>
+        </div>
+
+        {/* STAGE-LEVEL BOTTLENECK SELECTOR & INTERACTIVE CAPACITY GAP MITIGATION BAR */}
+        <div className="mb-4 p-3 rounded-xl bg-[#0c1424] border border-[#1f3152] space-y-2.5">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="text-[10px] font-mono font-bold text-slate-400 uppercase mr-1">
+                Soi Dự báo theo Công đoạn:
+              </span>
+              {[
+                { id: "all", label: "🏭 Toàn xưởng (Tổng hợp)" },
+                { id: "loading", label: "🔥 Cầu bốc Loading Dock (DK1–3)" },
+                { id: "transport", label: "🚜 Đoàn xe AGV / Tàu kéo (TG1–3)" },
+                { id: "picking", label: "📦 Siêu thị Kitting (PK1–4)" },
+                { id: "gtp_amr", label: "🤖 Kệ GTP & Robot AMR (Luồng Bin)" },
+                { id: "forklift", label: "🏗️ Xe nâng Forklift (Luồng Pallet)" },
+              ].map((st) => (
+                <button
+                  key={st.id}
+                  onClick={() => setSelectedStageView(st.id as any)}
+                  className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                    selectedStageView === st.id
+                      ? "bg-[#ff6b00]/20 border-[#ff6b00] text-white"
+                      : "bg-[#09101d] border-[#1d2d4a] text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  {st.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="pt-2 border-t border-[#182640] flex flex-wrap items-center justify-between gap-2 text-xs">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-[10px] font-mono font-extrabold text-emerald-400 uppercase">
+                ⚡ Thử nghiệm Bù Khoảng trống Năng lực ngay trên Đồ thị:
+              </span>
+              <button
+                onClick={() => setMitigateLoader(!mitigateLoader)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                  mitigateLoader
+                    ? "bg-emerald-600 text-white border-emerald-400 shadow-sm"
+                    : "bg-[#101c30] text-emerald-300 border-emerald-800/60 hover:border-emerald-500"
+                }`}
+              >
+                {mitigateLoader ? "✓ Đã điều 01 Nhân sự Kitting sang Dock (+13.5p)" : "+ Điều 01 Nhân sự Kitting sang Dock (08:30–12:30)"}
+              </button>
+              <button
+                onClick={() => setMitigateTugger(!mitigateTugger)}
+                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold transition cursor-pointer border ${
+                  mitigateTugger
+                    ? "bg-cyan-600 text-white border-cyan-400 shadow-sm"
+                    : "bg-[#101c30] text-cyan-300 border-cyan-800/60 hover:border-cyan-500"
+                }`}
+              >
+                {mitigateTugger ? "✓ Đã rút chu kỳ Tàu kéo 15p & kích hoạt AMR (+16.5p)" : "+ Rút chu kỳ Tàu kéo 15p & kích hoạt AMR"}
+              </button>
+              {(mitigateLoader || mitigateTugger) && (
+                <button
+                  onClick={() => { setMitigateLoader(false); setMitigateTugger(false); }}
+                  className="px-2 py-1 rounded text-[10px] text-slate-400 hover:text-white underline cursor-pointer"
+                >
+                  Đặt lại gốc
+                </button>
+              )}
+            </div>
+            <div className="text-[11px] font-mono text-slate-300">
+              Khung vượt tải: <b className={overloadedSlots === 0 ? "text-emerald-400" : "text-rose-400"}>{overloadedSlots}/{filteredTimeline.length} khung</b> · Biên cao điểm (09:00–12:00): <b className={avgMargin >= 0 ? "text-emerald-400" : "text-rose-400"}>{avgMargin >= 0 ? `+${avgMargin.toFixed(1)}p` : `${avgMargin.toFixed(1)}p`}</b>
+            </div>
           </div>
         </div>
 

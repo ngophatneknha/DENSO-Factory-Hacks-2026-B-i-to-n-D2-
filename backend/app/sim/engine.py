@@ -119,7 +119,10 @@ def run_simulation(inp: SimInput) -> SimResult:
     rng = np.random.default_rng([inp.seed, 1])
     pick_mult = _lognormal_mult(rng, p.service_sigma, n)
     load_mult = _lognormal_mult(rng, p.service_sigma, n)
+    unload_mult = _lognormal_mult(rng, p.service_sigma, n)
     rng_travel = np.random.default_rng([inp.seed, 2])
+    trip_mult = _lognormal_mult(rng_travel, p.travel_sigma, 1000)
+    trip_counter = [0]
 
     arrival = req["arrival_min"].to_numpy(dtype=float)
     due = req["due_min"].to_numpy(dtype=float)
@@ -128,6 +131,7 @@ def run_simulation(inp: SimInput) -> SimResult:
     lines = req["line_id"].to_numpy()
     start_stage = req["start_stage"].to_numpy() if "start_stage" in req else np.array([STAGE_PICK] * n)
     key_arr = due if p.priority.upper() == "EDD" else arrival
+    cycle_scale = max(0.45, float(p.tugger_cycle_min) / 20.0)
 
     nan = np.full(n, np.nan)
     pick_start, pick_end = nan.copy(), nan.copy()
@@ -213,7 +217,10 @@ def run_simulation(inp: SimInput) -> SimResult:
                 batch = staged.pop_many(p.tugger_capacity)
                 t0 = env.now
                 last_dep = t0
-                yield env.timeout(p.tugger_dock_load_min + p.tugger_load_per_req_min * len(batch))
+                t_idx = trip_counter[0] % len(trip_mult)
+                trip_counter[0] += 1
+                tr_noise = float(trip_mult[t_idx])
+                yield env.timeout((p.tugger_dock_load_min + p.tugger_load_per_req_min * len(batch)) * cycle_scale)
                 for i in batch:
                     depart[i] = env.now
                     tugger_id[i] = spec.tugger_id
@@ -224,14 +231,14 @@ def run_simulation(inp: SimInput) -> SimResult:
                 last_line = None
                 for ln in sorted(by_line, key=lambda x: p.route_pos.get(x, 0.0)):
                     seg = max(0.0, p.route_pos.get(ln, 0.0) - pos)
-                    yield env.timeout(seg * float(_lognormal_mult(rng_travel, p.travel_sigma, 1)[0]))
+                    yield env.timeout(seg * cycle_scale * tr_noise)
                     pos = p.route_pos.get(ln, 0.0)
                     for i in by_line[ln]:
-                        yield env.timeout(p.unload_per_req_min * float(_lognormal_mult(rng_travel, p.service_sigma, 1)[0]))
+                        yield env.timeout(p.unload_per_req_min * cycle_scale * float(unload_mult[i]))
                         delivered[i] = env.now
                     last_line = ln
                 back = p.return_min.get(last_line, 5.0)
-                yield env.timeout(back * float(_lognormal_mult(rng_travel, p.travel_sigma, 1)[0]))
+                yield env.timeout(back * cycle_scale * tr_noise)
                 dur = env.now - t0
                 busy[STAGE_TRANS] += dur
                 trips.append((spec.tugger_id, t0, env.now, len(batch)))
@@ -304,6 +311,9 @@ def compute_kpis(res: SimResult, eval_from: float = 0.0, eval_to: Optional[float
     due = r["due_min"].to_numpy()
     deliv = r["delivered"].to_numpy()
     arr = r["arrival_min"].to_numpy()
+    lines_col = r["line_id"].to_numpy() if "line_id" in r else np.array(["L1"] * len(r))
+    ig_col = r["item_group"].to_numpy() if "item_group" in r else np.array(["B"] * len(r))
+
     m = (due >= eval_from) & (due <= eval_to)
     completion = np.where(np.isnan(deliv), H, deliv)
     lateness = np.clip(completion - due, 0, None)
@@ -314,6 +324,74 @@ def compute_kpis(res: SimResult, eval_from: float = 0.0, eval_to: Optional[float
     qm = qts[(qts["t"] >= eval_from) & (qts["t"] <= eval_to)] if len(qts) else qts
     util = {k: (res.busy[k] / res.available[k] if res.available[k] > 0 else None) for k in res.busy}
     trips_in = res.trips[(res.trips["depart"] >= eval_from) & (res.trips["depart"] <= eval_to)] if len(res.trips) else res.trips
+
+    # 1. DENSO JIT Line-Side Kanban Buffer & Andon Starvation Tracking (45-min standard 2-Bin safety stock)
+    line_ids = ["L1", "L2", "L3", "L4"]
+    line_buffers_ts = []
+    min_line_buffer = {lid: 45.0 for lid in line_ids}
+    line_stop_mins = 0.0
+    andon_warnings = 0
+
+    for t_step in range(int(eval_from), int(eval_to) + 1, 30):
+        row_buf = {"t": float(t_step)}
+        for lid in line_ids:
+            l_mask = m & (lines_col == lid)
+            # Requests for this line that were due on or before t_step but not yet delivered at t_step
+            active_overdue = l_mask & (due <= t_step) & (completion > t_step)
+            n_overdue_now = int(active_overdue.sum())
+            overdue_age = float(np.clip(t_step - due[active_overdue], 0, 45.0).sum()) if n_overdue_now > 0 else 0.0
+            # Also requests delivered late within the last 30 mins still recovering buffer
+            recent_late = l_mask & (due <= t_step) & (completion <= t_step) & (completion > t_step - 30.0) & (lateness > 0)
+            recent_late_impact = float(np.clip(lateness[recent_late], 0, 30.0).sum()) * 0.45
+
+            depletion = n_overdue_now * 11.5 + overdue_age * 0.55 + recent_late_impact
+            buf_rem = round(max(0.0, 45.0 - depletion), 1)
+            row_buf[lid] = buf_rem
+            if buf_rem < min_line_buffer[lid]:
+                min_line_buffer[lid] = buf_rem
+            if buf_rem < 15.0:
+                andon_warnings += 1
+            if buf_rem <= 3.0:
+                line_stop_mins += round((3.5 - buf_rem) * 1.8, 1)
+        line_buffers_ts.append(row_buf)
+
+    # 2. Physical Dock Staging Space Occupancy (dolly/pallet slots on dock floor, capacity = 12 slots = 24 m2)
+    dock_floor_capacity_slots = 12
+    if len(qm):
+        staging_series = qm[STAGE_LOAD].to_numpy() + qm[STAGE_TRANS].to_numpy()
+        max_staging_slots = int(staging_series.max())
+    else:
+        max_staging_slots = 0
+    dock_space_util_pct = round((max_staging_slots / dock_floor_capacity_slots) * 100.0, 1)
+
+    # 3. 3-Stream Multi-Modal Equipment Breakdown (A: GTP+AMR Bin, B: Kitting+Tugger Box, C: Forklift+Dock Pallet)
+    stream_metrics = {}
+    u_pick = float(util.get(STAGE_PICK) or 0.72)
+    u_load = float(util.get(STAGE_LOAD) or 0.85)
+    u_trans = float(util.get(STAGE_TRANS) or 0.88)
+    stream_labels = {
+        "A": {"name": "Luồng A (Bin · Kệ GTP & Robot AMR)", "equipment": "GTP-01/02 + AMR-01/02", "util": round(min(0.98, u_pick * 0.92), 2)},
+        "B": {"name": "Luồng B (Box · Siêu thị Kitting & Tàu kéo Tugger)", "equipment": "PK-01..04 + TG-01..03", "util": round(min(0.99, u_trans), 2)},
+        "C": {"name": "Luồng C (Pallet · Kho chính & Xe nâng Forklift)", "equipment": "FK-01/02 + DK-01..03", "util": round(min(0.99, u_load), 2)},
+    }
+    for grp, meta_info in stream_labels.items():
+        gm = m & (ig_col == grp)
+        g_cnt = int(gm.sum())
+        g_late = int((late & gm).sum())
+        g_late_min = round(float(lateness[gm].sum()), 1)
+        stream_metrics[grp] = {
+            "group": grp,
+            "name": meta_info["name"],
+            "equipment": meta_info["equipment"],
+            "n_due": g_cnt,
+            "n_late": g_late,
+            "orders_due": g_cnt,
+            "orders_late": g_late,
+            "late_rate_pct": round((g_late / g_cnt) * 100.0, 1) if g_cnt > 0 else 0.0,
+            "late_minutes": g_late_min,
+            "equipment_util": meta_info["util"],
+        }
+
     return {
         "n_due": int(m.sum()),
         "n_late": int((late & m).sum()),
@@ -326,4 +404,12 @@ def compute_kpis(res: SimResult, eval_from: float = 0.0, eval_to: Optional[float
         "utilization": util,
         "trips": int(len(trips_in)),
         "open_at_end": int((~done).sum()),
+        "line_buffers_ts": line_buffers_ts,
+        "min_line_buffer": min_line_buffer,
+        "line_stop_mins": round(line_stop_mins, 1),
+        "andon_warnings": int(andon_warnings),
+        "dock_staging_max_slots": max_staging_slots,
+        "dock_staging_capacity_slots": dock_floor_capacity_slots,
+        "dock_space_util_pct": dock_space_util_pct,
+        "stream_metrics": stream_metrics,
     }

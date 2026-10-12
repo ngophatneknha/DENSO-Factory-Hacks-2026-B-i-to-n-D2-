@@ -80,7 +80,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
     return () => clearInterval(interval);
   }, [isReplaying, replayData]);
 
-  const currentReplayPhase = replayData?.phases[replayPhaseIdx];
+  const currentReplayPhase = replayMode ? replayData?.phases[replayPhaseIdx] : null;
 
   const t = {
     vi: {
@@ -135,11 +135,11 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   // Dynamic Health Score computation (penalizes peak overload & active critical alerts)
   const criticalAlertsCount = alerts.filter(a => a.severity === "CRITICAL" || a.severity === "WARNING").length;
   const calculatedHealthScore = Math.max(
-    38,
+    45,
     Math.min(
       98,
       Math.round(
-        100 - (peakRatio > 1.0 ? (peakRatio - 1.0) * 58 : 0) - (criticalAlertsCount * 8)
+        100 - (peakRatio > 1.0 ? (peakRatio - 1.0) * 65 : 0) - (criticalAlertsCount * 6)
       )
     )
   );
@@ -149,76 +149,78 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
   // Station Detail dictionary for deep-dive
   const stationDetails: Record<string, any> = {
     supermarket: {
-      name: "Kho Supermarket (SMKT-A)",
+      name: "Kho Supermarket & Hệ thống GTP (Goods-to-Person)",
       code: "ST-01",
-      area: "Zone A - Nhà máy 1",
+      area: "Zone A - Nhà máy 1 (Hợp nhất WMS & GTP Log)",
       status: "STABLE",
       workers: [
-        { id: "NV-01", name: "Nguyễn Văn An", role: "Thủ kho", skill: "Quản lý tồn kho Barcode / RFID", shift: "Ca 1 (06:00 - 14:00)" },
-        { id: "NV-02", name: "Trần Đình Bình", role: "Thủ kho", skill: "Nhập liệu SAP / ERP", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-01", name: "Nguyễn Văn An", role: "Thủ kho GTP", skill: "Vận hành trạm GTP & Barcode/RFID", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-02", name: "Trần Đình Bình", role: "Điều phối Kho", skill: "Đồng bộ tồn kho WMS / SAP", shift: "Ca 1 (06:00 - 14:00)" },
       ],
       queues: { waiting: 0, processing: 3, bufferCapacity: 250 },
       equipment: [
-        { name: "Kệ luân chuyển tự động", status: "Hoạt động 100%" },
-        { name: "Máy quét mã vạch không dây", status: "Pin 95%" },
+        { name: "Hệ thống GTP (Goods-to-Person) Shuttle", status: "145 khay/giờ (Ổn định)" },
+        { name: "Kệ luân chuyển tự động SMKT-A", status: "Mức lấp đầy 82%" },
+        { name: "Xe nâng Forklift FK-01 (Bổ sung Pallet)", status: "Hoạt động (Pin 88%)" },
       ],
-      kpis: { speed: "2.1 phút/kiện", bufferHealth: "100% Khả dụng", cycle: "12m xuất/lô" }
+      kpis: { speed: "2.1 phút/kiện", bufferHealth: "100% Khớp tồn kho", cycle: "12m xuất/lô" }
     },
     picking: {
-      name: "Bàn Soạn Hàng (Picking Bays PK1-4)",
+      name: "Khu Soạn Hàng Kitting (Picking Bays PK1-4)",
       code: "ST-02",
-      area: "Zone A - Supermarket Output",
+      area: "Zone A - Supermarket Output (Hợp nhất Bảng Phân Ca & Kỹ Năng)",
       status: "OPTIMAL",
       workers: [
-        { id: "NV-03", name: "Lê Hoàng Cường", role: "Picker", skill: "Soạn linh kiện BIN", shift: "Ca 1 (06:00 - 14:00)" },
-        { id: "NV-04", name: "Phạm Văn Dũng", role: "Picker (Đa năng)", skill: "Đã huấn luyện vận hành Cầu bốc Dock", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-03", name: "Lê Hoàng Cường", role: "Picker", skill: "Soạn linh kiện BIN / Khay nhỏ", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-04", name: "Phạm Văn Dũng", role: "Picker (Đa kỹ năng)", skill: "Cross-trained: Hỗ trợ Cầu bốc Dock & GTP", shift: "Ca 1 (06:00 - 14:00)" },
         { id: "NV-05", name: "Vũ Hải Đăng", role: "Picker", skill: "Soạn linh kiện TROLLEY", shift: "Ca 1 (06:00 - 14:00)" },
-        { id: "NV-06", name: "Hoàng Minh Giang", role: "Picker", skill: "Soạn linh kiện PALLET", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-06", name: "Hoàng Minh Giang", role: "Picker (Đa kỹ năng)", skill: "Cross-trained: Soạn PALLET & Vận hành cẩu", shift: "Ca 1 (06:00 - 14:00)" },
       ],
       queues: { waiting: 2, processing: 4, bufferCapacity: 40 },
       equipment: [
-        { name: "Bàn đóng gói PK-01 & PK-02", status: "Hoạt động" },
-        { name: "Bàn đóng gói PK-03 & PK-04", status: "Hoạt động" },
+        { name: "Bàn Kitting PK-01 & PK-02 (Pick-to-Light)", status: "Hoạt động 100%" },
+        { name: "Bàn Kitting PK-03 & PK-04 (Pick-to-Light)", status: "Hoạt động 100%" },
       ],
-      kpis: { speed: "3.4 phút/đơn", bufferHealth: "94% Đúng nhịp", cycle: "15m chu kỳ" }
+      kpis: { speed: "3.4 phút/đơn", bufferHealth: "94% Đúng nhịp Takt", cycle: "02 nhân sự đa năng sẵn sàng" }
     },
     loading: {
       name: "Cầu Bốc Hàng (Loading Docks DK1-3)",
       code: "ST-03",
-      area: "Zone B - Staging Dock Area",
+      area: "Zone B - Staging Dock Area (Điểm nghẽn gốc phát hiện)",
       status: "BOTTLENECK_HOTSPOT",
       workers: [
-        { id: "NV-07", name: "Bùi Trọng Hiếu", role: "Loader Dock 1", skill: "Vận hành cẩu nâng toa xe", shift: "Ca 1 (06:00 - 14:00)" },
-        { id: "NV-08", name: "Đỗ Quốc Khánh", role: "Loader Dock 2", skill: "Bốc xếp xe kéo Milk-run", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-07", name: "Bùi Trọng Hiếu", role: "Loader Dock 1", skill: "Vận hành bàn nâng & xếp xe kéo", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "NV-08", name: "Đỗ Quốc Khánh", role: "Loader Dock 2", skill: "Bốc xếp xe kéo Milk-run & Forklift", shift: "Ca 1 (06:00 - 14:00)" },
       ],
       queues: { waiting: currentReplayPhase ? currentReplayPhase.kpis.dock_queue : 4, processing: 2, bufferCapacity: 12 },
       equipment: [
-        { name: "Cầu bốc DK-01 & DK-02", status: "Đang xếp dỡ tải cao" },
-        { name: "Cầu bốc DK-03", status: "Thiếu người vận hành" },
+        { name: "Cầu bốc DK-01 & DK-02", status: "Quá tải 96% (Đang xếp dỡ)" },
+        { name: "Cầu bốc DK-03", status: "Thiếu 01 Loader vận hành" },
+        { name: "Xe nâng Forklift FK-02 (Hỗ trợ Pallet nặng)", status: "Đang chờ giải phóng làn DK-02" },
       ],
-      kpis: { speed: "4.8 phút/chuyến", bufferHealth: "Cảnh báo tắc nghẽn", cycle: "ROI Can thiệp 4.8x" }
+      kpis: { speed: "4.8 phút/chuyến", bufferHealth: "Cảnh báo nghẽn cổ chai", cycle: "ROI Can thiệp 4.8x" }
     },
     transport: {
-      name: "Đoàn Xe Kéo Vận Chuyển Milk-run",
+      name: "Đoàn Xe Kéo Milk-run (Tugger) & Đội Xe Tự Hành AGV/AMR",
       code: "ST-04",
       area: "Tuyến vòng nội bộ SMKT -> L1 -> L2 -> L3 -> L4 -> SMKT",
       status: "WARNING",
       workers: [
-        { id: "TX-01", name: "Ngô Quang Lâm", role: "Tài xế TG-01", skill: "Lái xe đầu kéo điện", shift: "Ca 1 (06:00 - 14:00)" },
-        { id: "TX-02", name: "Đặng Tiến Nam", role: "Tài xế TG-02", skill: "Lái xe đầu kéo điện", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "TX-01", name: "Ngô Quang Lâm", role: "Tài xế TG-01", skill: "Lái tàu kéo điện Mizusumashi", shift: "Ca 1 (06:00 - 14:00)" },
+        { id: "TX-02", name: "Đặng Tiến Nam", role: "Tài xế TG-02", skill: "Lái tàu kéo điện & Giám sát AMR", shift: "Ca 1 (06:00 - 14:00)" },
       ],
       queues: { waiting: 1, processing: 2, bufferCapacity: 8 },
       equipment: [
-        { name: "Xe đầu kéo TG-01", status: "Đang chạy vòng 04 (Pin 82%)" },
-        { name: "Xe đầu kéo TG-02", status: "Đang xếp hàng tại Dock 1 (Pin 75%)" },
-        { name: "Xe đầu kéo TG-03", status: "Đang bảo dưỡng định kỳ 10:00 - 12:00" },
+        { name: "Tàu kéo TG-01 & Đội 06 xe AMR tự hành", status: "Đang chạy vòng 04 (Pin 82%)" },
+        { name: "Tàu kéo TG-02", status: "Đang chờ bốc tại Dock 1 (Pin 75%)" },
+        { name: "Tàu kéo TG-03", status: "Đang bảo dưỡng định kỳ 10:00 - 12:00" },
       ],
-      kpis: { speed: "20 phút / vòng lặp", bufferHealth: "Công suất bận 94%", cycle: "8 đơn / chuyến xe" }
+      kpis: { speed: "20 phút / vòng lặp", bufferHealth: "Công suất bận 94% (Do chờ Dock)", cycle: "8 đơn / chuyến xe" }
     },
     lines: {
-      name: "4 Chuyền Lắp Ráp Sản Xuất (L1 - L4)",
+      name: "4 Chuyền Lắp Ráp (L1 - L4) & Xe Nâng Forklift Cấp Phôi",
       code: "ST-05",
-      area: "Xưởng Sản Xuất Chính",
+      area: "Xưởng Sản Xuất Chính (Hợp nhất Kế hoạch SX & BOM)",
       status: "DEMAND_SURGE",
       workers: [
         { id: "QL-01", name: "Trần Văn Phát", role: "Quản đốc Dây chuyền", skill: "Điều độ chuyền L1/L2 (+30%)", shift: "Ca 1 (06:00 - 14:00)" },
@@ -228,6 +230,7 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
       equipment: [
         { name: "Line 1 & Line 2 (L1 & L2)", status: "Tăng 30% sản lượng đổi mẫu xe" },
         { name: "Line 3 & Line 4 (L3 & L4)", status: "Hoạt động theo định mức 100%" },
+        { name: "Xe nâng Forklift FK-03 (Cấp kiện Pallet L1/L2)", status: "Hoạt động 92% công suất" },
       ],
       kpis: { speed: "385 đơn vị/giờ", bufferHealth: "Đệm tối thiểu 20 phút", cycle: "0 Sự cố dừng chuyền" }
     }
@@ -524,6 +527,191 @@ export const OverviewTab: React.FC<OverviewTabProps> = ({
             <span className="font-bold text-rose-400 font-mono">
               {alerts.filter((a) => a.severity === "CRITICAL").length} tín hiệu
             </span>
+          </div>
+        </div>
+      </div>
+
+      {/* TRỤ CỘT 1 (SLIDE 17 & 23): SINGLE SOURCE OF TRUTH — HỢP NHẤT 5 NGUỒN DỮ LIỆU & EXCEL PHÂN TÁN */}
+      <div className="control-panel p-5 border border-cyan-500/30 bg-gradient-to-r from-[#0e182a] via-[#0c1424] to-[#0e192d]">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between mb-3.5 gap-2">
+          <div>
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 mb-1 font-mono">
+              <Warehouse className="w-3.5 h-3.5" />
+              <span>TRỤ CỘT 1 · HIỂN THỊ HÓA: WHAT IS HAPPENING NOW? (SLIDE 17 & 23)</span>
+            </div>
+            <h3 className="text-xs font-black uppercase tracking-wider text-white">
+              SINGLE SOURCE OF TRUTH — HỢP NHẤT 5 NGUỒN EXCEL/HỆ THỐNG PHÂN TÁN TRÊN MẶT BẰNG NỘI KHU
+            </h3>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              Xóa bỏ tình trạng tra cứu thủ công trên 5 file Excel rời rạc. Nhấp vào từng thực thể bên dưới để định vị trực tiếp trên Sơ đồ 2D CAD và xem thông số thiết bị/nhân sự.
+            </p>
+          </div>
+          <div className="shrink-0 flex items-center space-x-2 text-[11px] font-mono bg-[#09101d] px-3 py-1.5 rounded-lg border border-[#1e3050] text-emerald-400">
+            <CheckCircle2 className="w-3.5 h-3.5" />
+            <span>Đồng bộ 5/5 nguồn · Chu kỳ 15s</span>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 text-xs">
+          {/* Entity 1: Warehouse & GTP */}
+          <div
+            onClick={() => { setSelectedStation("supermarket"); setShowDrawer(true); }}
+            className={`p-3 rounded-xl border transition cursor-pointer ${
+              selectedStation === "supermarket"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#1f304d] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-white">1. Kho & GTP</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                82% Sức chứa
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-300 font-medium">Goods-to-Person: 145 khay/h</div>
+            <div className="text-[10px] text-slate-400 mt-1 border-t border-[#1b2942] pt-1">
+              Thay thế: <i>Excel Tồn kho & Phiếu xuất</i>
+            </div>
+          </div>
+
+          {/* Entity 2: Manpower & Cross-skill */}
+          <div
+            onClick={() => { setSelectedStation("picking"); setShowDrawer(true); }}
+            className={`p-3 rounded-xl border transition cursor-pointer ${
+              selectedStation === "picking"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#1f304d] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-white">2. Nhân lực Kitting</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-emerald-950 text-emerald-300 border border-emerald-800">
+                15/18 Nhân sự
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-300 font-medium">02 Picker có kỹ năng chéo Dock</div>
+            <div className="text-[10px] text-slate-400 mt-1 border-t border-[#1b2942] pt-1">
+              Thay thế: <i>Excel Điểm danh & Bảng phân ca</i>
+            </div>
+          </div>
+
+          {/* Entity 3: Receiving/Shipping Docks */}
+          <div
+            onClick={() => { setSelectedStation("loading"); setShowDrawer(true); }}
+            className={`p-3 rounded-xl border transition cursor-pointer ${
+              selectedStation === "loading"
+                ? "bg-[#172642] border-[#ff6b00] ring-1 ring-[#ff6b00]/40"
+                : "bg-[#0d1526] border-rose-800/60 hover:border-rose-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-white">3. Cổng Cầu bốc Dock</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-rose-950 text-rose-300 border border-rose-800">
+                Tải 96% (Nghẽn)
+              </span>
+            </div>
+            <div className="text-[11px] text-amber-300 font-medium">DK1–2 bận · DK3 thiếu 1 Loader</div>
+            <div className="text-[10px] text-slate-400 mt-1 border-t border-[#1b2942] pt-1">
+              Thay thế: <i>Sổ ghi chép điều độ Cổng bốc</i>
+            </div>
+          </div>
+
+          {/* Entity 4: AGV / AMR / Tugger Fleet */}
+          <div
+            onClick={() => { setSelectedStation("transport"); setShowDrawer(true); }}
+            className={`p-3 rounded-xl border transition cursor-pointer ${
+              selectedStation === "transport"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-amber-800/60 hover:border-amber-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-white">4. AGV / AMR & Tàu kéo</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-amber-950 text-amber-300 border border-amber-800">
+                TG-03 Bảo trì
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-300 font-medium">2 Tàu kéo + 6 AMR chạy (Pin 80%)</div>
+            <div className="text-[10px] text-slate-400 mt-1 border-t border-[#1b2942] pt-1">
+              Thay thế: <i>Excel Lịch tàu kéo & Log bảo trì</i>
+            </div>
+          </div>
+
+          {/* Entity 5: Forklift & Assembly Lines */}
+          <div
+            onClick={() => { setSelectedStation("lines"); setShowDrawer(true); }}
+            className={`p-3 rounded-xl border transition cursor-pointer ${
+              selectedStation === "lines"
+                ? "bg-[#172642] border-cyan-400 ring-1 ring-cyan-400/40"
+                : "bg-[#0d1526] border-[#1f304d] hover:border-slate-500"
+            }`}
+          >
+            <div className="flex items-center justify-between mb-1">
+              <span className="font-bold text-white">5. Forklift & 4 Chuyền</span>
+              <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-bold bg-indigo-950 text-indigo-300 border border-indigo-800">
+                L1/L2 +30%
+              </span>
+            </div>
+            <div className="text-[11px] text-slate-300 font-medium">02 Xe nâng FK · Đệm chuẩn 45p</div>
+            <div className="text-[10px] text-slate-400 mt-1 border-t border-[#1b2942] pt-1">
+              Thay thế: <i>Excel Kế hoạch SX & Định mức BOM</i>
+            </div>
+          </div>
+        </div>
+
+        {/* INTERACTIVE CROSS-SHEET MATHEMATICAL LINEAGE TRACE (5 EXCEL FILES -> BOTTLENECK) */}
+        <div className="mt-3.5 p-3.5 rounded-xl bg-[#080f1d] border border-cyan-900/60 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-xs">
+          <div className="space-y-1.5 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="px-2 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-700/50 font-mono text-[10px] font-extrabold">
+                LIÊN KẾT TOÁN HỌC 5 FILE EXCEL GỐC (CROSS-SHEET LINEAGE)
+              </span>
+              <span className="text-[11px] text-slate-400 font-mono">
+                Đang soi nút: <b className="text-amber-300 uppercase">{currStation.code} · {currStation.name}</b>
+              </span>
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5 font-mono text-[11px] text-slate-200 bg-[#0d172a] p-2 rounded-lg border border-[#1c2e4a]">
+              <span className="px-2 py-0.5 rounded bg-indigo-950/80 text-indigo-300 border border-indigo-700/40">
+                [File 1: Plan L1/L2 +30% (280 sp/h)]
+              </span>
+              <span className="text-slate-500">×</span>
+              <span className="px-2 py-0.5 rounded bg-purple-950/80 text-purple-300 border border-purple-700/40">
+                [File 2: BOM (A:Bin / B:Box / C:Pallet)]
+              </span>
+              <span className="text-slate-500">→</span>
+              <span className="px-2 py-0.5 rounded bg-emerald-950/80 text-emerald-300 border border-emerald-700/40">
+                [File 3: Tồn GTP & Kitting (36.8p tải/15p)]
+              </span>
+              <span className="text-slate-500">vs.</span>
+              <span className="px-2 py-0.5 rounded bg-amber-950/80 text-amber-300 border border-amber-700/40">
+                [File 4: Ca S1 chỉ có 02 Loader Dock (27.0p)]
+              </span>
+              <span className="text-slate-500">+</span>
+              <span className="px-2 py-0.5 rounded bg-rose-950/80 text-rose-300 border border-rose-700/40">
+                [File 5: TG-03 Bảo trì 10:00–12:00 (-33% xe)]
+              </span>
+              <span className="text-slate-500">⇒</span>
+              <span className="px-2 py-0.5 rounded bg-rose-600 text-white font-black">
+                NGHẼN CẦU BỐC DOCK (134%) & CẠN ĐỆM L1/L2
+              </span>
+            </div>
+          </div>
+
+          <div className="shrink-0 flex flex-wrap items-center gap-2">
+            <a
+              href="/api/data/template"
+              target="_blank"
+              rel="noreferrer"
+              className="px-3 py-1.5 rounded-lg bg-[#13223a] hover:bg-[#1b3050] border border-cyan-600/40 text-cyan-300 text-[11px] font-bold transition cursor-pointer"
+            >
+              📥 Tải Bộ 5 Sheet Excel Mẫu (.xlsx)
+            </a>
+            <button
+              onClick={() => onNavigateTab("simulate")}
+              className="px-3 py-1.5 rounded-lg bg-[#ff6b00] hover:bg-[#e66000] text-white text-[11px] font-bold transition cursor-pointer"
+            >
+              ⚡ Chạy Mô phỏng Kép Đối chứng →
+            </button>
           </div>
         </div>
       </div>

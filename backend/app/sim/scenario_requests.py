@@ -48,4 +48,14 @@ def prepare_horizon_requests(
     else:
         all_req = future_req
 
+    # Apply realistic DENSO Kanban urgency dispersion: L1/L2 urgent Bins have tighter slack (-7m), Bulk C Pallets have wider slack (+9m)
+    rng_u = np.random.default_rng(seed)
+    urg_offset = (
+        np.where(all_req["line_id"].isin(["L1", "L2"]), -7.0, 7.0)
+        + np.where(all_req["item_group"] == "C", 9.0, np.where(all_req["item_group"] == "A", -4.0, 0.0))
+        + rng_u.uniform(-4.0, 4.0, len(all_req))
+    )
+    all_req["due_at"] = all_req["created_at"] + pd.to_timedelta(cfg.due_minutes + urg_offset, unit="m")
+    all_req["stage"] = all_req["start_stage"]
+
     return all_req

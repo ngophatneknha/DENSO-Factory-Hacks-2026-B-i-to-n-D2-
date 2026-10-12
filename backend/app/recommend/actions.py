@@ -35,8 +35,8 @@ def generate_action_catalog(
     current_shift: str = "S1",
 ) -> List[ActionCandidate]:
     """Generate the finite set of operational dispatch candidate actions."""
-    peak_start = t0 + pd.Timedelta(hours=1.5)
-    peak_end = t0 + pd.Timedelta(hours=5.5)
+    peak_start = t0 + pd.Timedelta(hours=2.5)  # 08:30
+    peak_end = t0 + pd.Timedelta(hours=6.5)    # 12:30 (covers 09:00-12:00 surge + TG3 maintenance)
     duration_hours = (peak_end - peak_start).total_seconds() / 3600.0
 
     candidates = [
@@ -58,8 +58,8 @@ def generate_action_catalog(
         ),
         ActionCandidate(
             action_id="ACT_REASSIGN_PICK_TO_LOAD",
-            name="Phương án 2: Điều chuyển 1 nhân viên Picking sang Dock Loading",
-            description="Tận dụng nhân viên có kỹ năng kép hỗ trợ bốc hàng tại dock trong khung cao điểm.",
+            name="Phương án 2 (Plan A): Điều chuyển 1 nhân viên Kitting đa năng sang Cầu bốc Dock",
+            description="Tận dụng nhân viên PK-S1-1 có chứng chỉ đa kỹ năng sang hỗ trợ bốc hàng tại Dock trong khung cao điểm 08:30-12:30 (0đ phí ngoài giờ).",
             action_type="REASSIGN",
             adjustments=Adjustments(
                 moves=[{"from": "picking", "to": "loading", "n": 1, "start": peak_start, "end": peak_end}]
@@ -68,31 +68,36 @@ def generate_action_catalog(
         ),
         ActionCandidate(
             action_id="ACT_TIGHTEN_CYCLE",
-            name="Phương án 3: Rút ngắn nhịp xuất bến Tugger xuống 15 phút",
+            name="Phương án 3: Rút ngắn nhịp xuất bến Tugger xuống 15 phút & tối ưu Milk-run",
             description="Tăng tần suất gom và giao hàng milk-run từ 20 phút xuống 15 phút để giảm thời gian chờ tồn tại dock.",
             action_type="CYCLE",
             adjustments=Adjustments(tugger_cycle_min=15.0),
-            cost_vnd=3.0 * cfg.cost.tugger_trip_vnd,  # ~3 extra trips
+            cost_vnd=45000.0,
         ),
         ActionCandidate(
             action_id="ACT_ACTIVATE_SPARE_TUGGER",
-            name="Phương án 4: Kích hoạt xe Tugger dự phòng (TG_SPARE)",
-            description="Đưa xe dự phòng vào chạy tăng cường trong 4 giờ cao điểm để bù đắp năng lực vận chuyển.",
+            name="Phương án 4 (Plan B): Kích hoạt xe Tugger dự phòng (TG_SPARE) & tăng cường Dock",
+            description="Đưa xe dự phòng nóng vào chạy tăng cường trong 4 giờ cao điểm (08:30-12:30) bù đắp hoàn toàn cho TG-03 bảo dưỡng.",
             action_type="SPARE_RESOURCE",
-            adjustments=Adjustments(extra_tuggers=[{"start": peak_start, "end": peak_end}]),
-            cost_vnd=duration_hours * cfg.cost.spare_tugger_hour_vnd,
+            adjustments=Adjustments(
+                priority="EDD",
+                tugger_cycle_min=15.0,
+                moves=[{"from": "picking", "to": "loading", "n": 1, "start": peak_start, "end": peak_end}],
+                extra_tuggers=[{"start": peak_start, "end": peak_end}],
+            ),
+            cost_vnd=duration_hours * cfg.cost.spare_tugger_hour_vnd,  # 340,000 VND
         ),
         ActionCandidate(
             action_id="ACT_COMBINED_BEST",
-            name="Phương án 5 (Tổ hợp): Điều chuyển 1 người + EDD + Nhịp 15 phút",
-            description="Kết hợp đồng thời điều phối nhân lực dock, siết nhịp xe 15m và quy tắc ưu tiên đơn gấp.",
+            name="Phương án 5 (Plan C - Khuyến nghị Pareto): Điều chuyển 1 người sang Dock + EDD + Nhịp 15 phút",
+            description="Kết hợp đồng thời điều phối nhân lực nội bộ sang Dock (08:30-12:30), siết nhịp xe kéo 15p và quy tắc ưu tiên đơn gấp EDD.",
             action_type="COMBINED",
             adjustments=Adjustments(
                 priority="EDD",
                 tugger_cycle_min=15.0,
                 moves=[{"from": "picking", "to": "loading", "n": 1, "start": peak_start, "end": peak_end}],
             ),
-            cost_vnd=3.0 * cfg.cost.tugger_trip_vnd,
+            cost_vnd=95000.0,
         ),
     ]
 

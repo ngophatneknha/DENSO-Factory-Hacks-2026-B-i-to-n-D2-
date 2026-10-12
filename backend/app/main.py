@@ -303,7 +303,28 @@ def get_root_cause_analysis(
 class EvaluateActionsRequest(BaseModel):
     lambda_risk: float = 0.25
     n_scenarios: int = 10
-    demand_multiplier: float = 1.0  # 1.0 = normal, 1.3 = +30% surge
+    demand_multiplier: float = 1.3  # 1.3 = +30% storyline surge on demo_day, 1.0 = normal shift
+
+
+def _scale_storyline_requests(req_pool: pd.DataFrame, relative_scale: float, seed: int = 42) -> pd.DataFrame:
+    """Scale request pool relative to demo_day's baked-in +30% storyline surge (relative_scale=1.0)."""
+    if abs(relative_scale - 1.0) < 1e-3:
+        return req_pool
+    if relative_scale > 1.0:
+        n_extra = int(round(len(req_pool) * (relative_scale - 1.0)))
+        if n_extra > 0:
+            extra_sample = req_pool.sample(n=n_extra, replace=True, random_state=seed).copy().reset_index(drop=True)
+            extra_sample["request_id"] = [f"{rid}_SURGE_{i+1:03d}" for i, rid in enumerate(extra_sample["request_id"])]
+            return pd.concat([req_pool, extra_sample], ignore_index=True)
+        return req_pool
+    # relative_scale < 1.0: preserve WIP snapshot rows and subsample new arrivals
+    is_wip = req_pool["request_id"].astype(str).str.startswith("WIP-")
+    wip_df = req_pool[is_wip]
+    new_df = req_pool[~is_wip]
+    target_total = max(len(wip_df) + 10, int(round(len(req_pool) * relative_scale)))
+    n_keep_new = max(1, min(len(new_df), target_total - len(wip_df)))
+    kept_new = new_df.sample(n=n_keep_new, replace=False, random_state=seed).sort_index()
+    return pd.concat([wip_df, kept_new], ignore_index=True)
 
 
 @app.post("/api/recommend/evaluate")
@@ -320,13 +341,7 @@ def evaluate_recommendations(req: EvaluateActionsRequest):
         t_end=ds.now + pd.Timedelta(hours=8),
         seed=42,
     )
-    if req.demand_multiplier != 1.0:
-        frac = req.demand_multiplier
-        n_extra = int(len(req_pool) * (frac - 1.0))
-        if n_extra > 0:
-            extra_sample = req_pool.sample(n=n_extra, replace=True, random_state=42).copy().reset_index(drop=True)
-            extra_sample["request_id"] = [f"{rid}_SURGE_{i+1:03d}" for i, rid in enumerate(extra_sample["request_id"])]
-            req_pool = pd.concat([req_pool, extra_sample], ignore_index=True)
+    req_pool = _scale_storyline_requests(req_pool, req.demand_multiplier / 1.3, seed=42)
 
     res = evaluate_actions_on_scenarios(
         cfg=cfg,
@@ -343,7 +358,7 @@ def evaluate_recommendations(req: EvaluateActionsRequest):
 
 @app.get("/api/recommend/actions")
 def get_recommendations():
-    return evaluate_recommendations(EvaluateActionsRequest(lambda_risk=0.25, n_scenarios=10))
+    return evaluate_recommendations(EvaluateActionsRequest(lambda_risk=0.25, n_scenarios=10, demand_multiplier=1.3))
 
 
 class MultiPlanRequest(BaseModel):
@@ -358,7 +373,7 @@ class MultiPlanRequest(BaseModel):
 @cached("multi_plans", ttl=60.0)
 def get_multi_objective_plans(req: MultiPlanRequest):
     from .recommend.multi_plan import compute_multi_objective_plans
-    baseline_kpis = {"late_minutes": 120.0, "late_rate": 0.18}
+    baseline_kpis = {"late_minutes": 268.5, "late_rate": 0.158}
     return compute_multi_objective_plans(
         baseline_kpis=baseline_kpis,
         demand_multiplier=req.demand_multiplier,
@@ -392,7 +407,7 @@ class CustomSimRequest(BaseModel):
     extra_pickers: int = 0
     extra_loaders: int = 0
     extra_tuggers: int = 0
-    demand_surge_pct: float = 0.0  # e.g. 20 for +20%
+    demand_surge_pct: float = 30.0  # Default 30% storyline surge
     seed: int = 42
 
 
@@ -412,15 +427,9 @@ def simulate_custom(sim_cfg: CustomSimRequest):
         t_end=t0 + pd.Timedelta(minutes=horizon_min),
         seed=sim_cfg.seed,
     )
-    if sim_cfg.demand_surge_pct > 0:
-        frac = 1.0 + (sim_cfg.demand_surge_pct / 100.0)
-        n_extra = int(len(req_pool) * (frac - 1.0))
-        if n_extra > 0:
-            extra_sample = req_pool.sample(n=n_extra, replace=True, random_state=sim_cfg.seed).copy().reset_index(drop=True)
-            extra_sample["request_id"] = [f"{rid}_SURGE_{i+1:03d}" for i, rid in enumerate(extra_sample["request_id"])]
-            req_pool = pd.concat([req_pool, extra_sample], ignore_index=True)
+    req_pool = _scale_storyline_requests(req_pool, (100.0 + sim_cfg.demand_surge_pct) / 130.0, seed=sim_cfg.seed)
 
-    # Build custom adjustments
+    # Build custom adjustments for the user's selected scenario
     temps = []
     if sim_cfg.extra_pickers > 0:
         temps.append({"stage": "picking", "start": t0, "end": t0 + pd.Timedelta(minutes=horizon_min), "n": sim_cfg.extra_pickers})
@@ -454,8 +463,30 @@ def simulate_custom(sim_cfg: CustomSimRequest):
     res = run_simulation(SimInput(horizon_min, sim_req, workers, tuggers, params, seed=sim_cfg.seed))
     kpis = compute_kpis(res, 0.0, horizon_min)
 
+    # Also run CRN-paired Baseline (FIFO, 20m cycle, no extra resources) on the exact same sim_req & seed
+    adj_base = Adjustments(priority="FIFO", tugger_cycle_min=20.0)
+    w_base, t_base, p_base, _ = build_specs(
+        cfg=cfg, calendar=ds["resource_calendar"], disruptions=ds["disruptions"], t0=t0, horizon_min=horizon_min, adj=adj_base
+    )
+    res_base = run_simulation(SimInput(horizon_min, sim_req, w_base, t_base, p_base, seed=sim_cfg.seed))
+    baseline_kpis = compute_kpis(res_base, 0.0, horizon_min)
+    q_base_sample = res_base.queue_ts.to_dict(orient="records")[::2]
+
+    # Also run CRN-paired Recommended Plan C (EDD, 15m cycle, +1 loader) on the exact same sim_req & seed
+    adj_rec = Adjustments(
+        priority="EDD",
+        tugger_cycle_min=15.0,
+        temps=[{"stage": "loading", "start": t0, "end": t0 + pd.Timedelta(minutes=horizon_min), "n": 1}],
+    )
+    w_rec, t_rec, p_rec, _ = build_specs(
+        cfg=cfg, calendar=ds["resource_calendar"], disruptions=ds["disruptions"], t0=t0, horizon_min=horizon_min, adj=adj_rec
+    )
+    res_rec = run_simulation(SimInput(horizon_min, sim_req, w_rec, t_rec, p_rec, seed=sim_cfg.seed))
+    recommended_kpis = compute_kpis(res_rec, 0.0, horizon_min)
+    q_rec_sample = res_rec.queue_ts.to_dict(orient="records")[::2]
+
     # Queue timeline samples
-    q_sample = res.queue_ts.to_dict(orient="records")
+    q_sample = res.queue_ts.to_dict(orient="records")[::2]
 
     # Detailed Trips Gantt
     trips_gantt = []
@@ -541,8 +572,12 @@ def simulate_custom(sim_cfg: CustomSimRequest):
 
     return {
         "kpis": kpis,
+        "baseline_kpis": baseline_kpis,
+        "recommended_kpis": recommended_kpis,
         "logic_errors": res.logic_errors,
-        "queue_timeline": q_sample[::2],  # sample every 30 mins
+        "queue_timeline": q_sample,  # sample every 30 mins
+        "baseline_queue_timeline": q_base_sample,
+        "recommended_queue_timeline": q_rec_sample,
         "trips_count": len(res.trips),
         "trips_gantt": trips_gantt,
         "order_sample": sample_rows,
@@ -633,56 +668,56 @@ def copilot_validate(tuggers: int = 3, loaders: int = 3, cost_vnd: float = 0.0):
 @app.get("/api/scenarios/replay")
 def get_incident_replay():
     return {
-        "scenario_name": "Sự cố Đột biến Nhu cầu Ca S2 & Bảo dưỡng Xe Kéo TG-03",
-        "horizon": "14:00 - 22:00 (8 giờ)",
+        "scenario_name": "Sự cố Đột biến Nhu cầu +30% Ca S1 & Bảo dưỡng Tàu kéo TG-03 (09:30 - 12:00)",
+        "horizon": "06:00 - 14:00 (Ca Sáng S1 - 8 giờ)",
         "phases": [
             {
                 "phase_id": 1,
-                "name": "1. Vận hành Bình thường (Normal State)",
-                "timestamp": "14:00",
+                "name": "1. Khởi đầu Ca S1 Ổn định (06:00 - 09:00)",
+                "timestamp": "06:00",
                 "status_color": "emerald",
-                "kpis": {"health_score": 96, "dock_queue": 1, "fleet_util": "62%", "sla": "99.4%"},
-                "event": "Đầu ca S2. 19 đơn WIP đệm được xử lý trơn tru. 3 xe Tugger hoạt động nhịp nhàng theo chu kỳ 20 phút.",
+                "kpis": {"health_score": 96, "dock_queue": 1, "fleet_util": "68%", "sla": "99.4%"},
+                "event": "Đầu ca S1. 19 đơn WIP đệm được giải phóng trơn tru. 3 tàu kéo TG-01..03, 2 xe nâng FK-01..02 và 2 Robot AMR vận hành đúng nhịp chuẩn.",
                 "dock_state": "NORMAL",
                 "active_tuggers": ["TG-01", "TG-02", "TG-03"],
             },
             {
                 "phase_id": 2,
-                "name": "2. Cảnh báo Sớm (Early Warning)",
-                "timestamp": "14:30",
+                "name": "2. Cảnh báo Sớm: Đơn hàng L1/L2 Tăng vọt +30% (09:15)",
+                "timestamp": "09:15",
                 "status_color": "amber",
-                "kpis": {"health_score": 82, "dock_queue": 4, "fleet_util": "79%", "sla": "96.2%"},
-                "event": "Đơn hàng Line 1 & Line 2 đột ngột tăng 30% do thay đổi kế hoạch sản xuất. Cầu bốc hàng bắt đầu tích tụ hàng chờ.",
+                "kpis": {"health_score": 81, "dock_queue": 5, "fleet_util": "84%", "sla": "95.8%"},
+                "event": "Kế hoạch Heijunka Line 1 (Compressor) & Line 2 (Radiator) tăng đột biến +30% (khung 09:00–12:00). Lượng Box từ Kitting và Pallet từ Forklift dồn về Cầu bốc Dock.",
                 "dock_state": "WARNING",
                 "active_tuggers": ["TG-01", "TG-02", "TG-03"],
             },
             {
                 "phase_id": 3,
-                "name": "3. Xuất hiện Điểm nghẽn (Bottleneck Occurrence)",
-                "timestamp": "15:00",
+                "name": "3. Bùng phát Điểm nghẽn: TG-03 Bảo dưỡng & Tràn Sàn Dock (10:00)",
+                "timestamp": "10:00",
                 "status_color": "rose",
-                "kpis": {"health_score": 58, "dock_queue": 8, "fleet_util": "98%", "sla": "81.5%"},
-                "event": "Xe TG-03 phải dừng hoạt động để bảo dưỡng định kỳ. Năng lực kéo giảm 33%. Tồn ứ nghiêm trọng tại Loading Dock.",
+                "kpis": {"health_score": 56, "dock_queue": 9, "fleet_util": "98%", "sla": "84.2%"},
+                "event": "Tàu kéo TG-03 vào lịch bảo dưỡng định kỳ (10:00–12:00), hụt 33% năng lực vận chuyển đúng lúc 1 Loader nghỉ giữa ca. Tồn ứ nghiêm trọng tại Loading Dock, tồn đệm chân chuyền L1/L2 tụt xuống mức cảnh báo Andon.",
                 "dock_state": "CONGESTED",
                 "active_tuggers": ["TG-01", "TG-02"],
             },
             {
                 "phase_id": 4,
-                "name": "4. AI Can thiệp Đa Mục Tiêu (AI Recommendation)",
-                "timestamp": "15:15",
+                "name": "4. AI Can thiệp Đa Mục Tiêu — Phương án C Pareto (10:15)",
+                "timestamp": "10:15",
                 "status_color": "blue",
-                "kpis": {"health_score": 75, "dock_queue": 6, "fleet_util": "88%", "sla": "92.0%"},
-                "event": "Logistics Copilot đề xuất Phương án C (Pareto): Chuyển 1 Picker sang hỗ trợ Dock 2 + Chuyển quy tắc điều độ sang EDD + Rút ngắn chu kỳ xe còn 15 phút.",
+                "kpis": {"health_score": 78, "dock_queue": 5, "fleet_util": "89%", "sla": "93.5%"},
+                "event": "Hệ thống đề xuất Phương án C (+95.000đ/ca): Điều 01 nhân sự Kitting đa năng (PK-S1-1) sang Cầu bốc Dock 2 + Chuyển quy tắc sang EDD + Rút chu kỳ tàu kéo 20p → 15p & điều AMR hỗ trợ luồng Bin.",
                 "dock_state": "DISPATCHING",
                 "active_tuggers": ["TG-01", "TG-02"],
             },
             {
                 "phase_id": 5,
-                "name": "5. Khôi phục Vận hành Ổn định (Full Recovery)",
-                "timestamp": "16:30",
+                "name": "5. Giải tỏa Nghẽn & Bảo vệ 100% Chuyền Lắp ráp (12:00)",
+                "timestamp": "12:00",
                 "status_color": "emerald",
-                "kpis": {"health_score": 94, "dock_queue": 2, "fleet_util": "74%", "sla": "98.4%"},
-                "event": "Hàng chờ tại Dock giải tỏa thành công. Xe TG-03 hoàn tất bảo dưỡng và sẵn sàng dự phòng nóng. SLA đạt 98.4%, không gián đoạn dây chuyền.",
+                "kpis": {"health_score": 95, "dock_queue": 2, "fleet_util": "75%", "sla": "96.4%"},
+                "event": "Hàng chờ tại Cầu bốc Dock được giải tỏa hoàn toàn. Tàu kéo TG-03 hoàn tất bảo dưỡng quay lại đội hình. Tồn đệm Kanban chân chuyền L1–L4 phục hồi > 30 phút, 0 phút dừng chuyền (Zero Line-Stop).",
                 "dock_state": "RECOVERED",
                 "active_tuggers": ["TG-01", "TG-02", "TG-03"],
             },
@@ -727,27 +762,27 @@ def download_excel_report():
 def get_dispatch_sheet():
     ds = active_dataset()
     return {
-        "facility": "DENSO Manufacturing Vietnam (DMVN) - Nhà máy 1",
-        "sheet_id": f"DSP-20261007-S2-{pd.Timestamp.now().strftime('%H%M')}",
-        "shift": "Ca 2 (S2: 14:00 - 22:00)",
+        "facility": "DENSO Manufacturing Vietnam (DMVN) - Nhà máy Thăng Long",
+        "sheet_id": f"DSP-20261007-S1-{pd.Timestamp.now().strftime('%H%M')}",
+        "shift": "Ca Sáng (S1: 06:00 - 14:00) · Khung Cao điểm 08:30 - 12:30",
         "effective_date": "2026-10-07",
-        "supervisor": "Trưởng ca Điều phối Logistics",
-        "approved_by": "Giám đốc Quản lý Sản xuất & Chuỗi cung ứng",
-        "directive_title": "LỆNH ĐIỀU PHỐI CẤP VẬT TƯ: ỨNG PHÓ CHUYỂN ĐỔI MẪU XE & BẢO DƯỠNG XE TG3",
-        "summary": "Kích hoạt phương án tối ưu Pareto COMBINED-01: Chuyển quy tắc điều độ sang EDD, tái bố trí 1 nhân sự Picking sang Cầu bốc hàng Loading Dock, tăng tần suất Tugger lên 15 phút/chuyến.",
+        "supervisor": "Trưởng ca Điều phối Nội vận (PC&L Shift Leader)",
+        "approved_by": "Trưởng phòng Quản lý Sản xuất & Logistics (PC&L Manager)",
+        "directive_title": "PHIẾU CHỈ THỊ CÔNG VIỆC CHUẨN (SWCS): ỨNG PHÓ ĐƠN HÀNG TĂNG +30% & BẢO DƯỠNG XE TG-03",
+        "summary": "Kích hoạt Phương án C (Tối ưu Pareto — Chi phí phụ trội +95.000 đ/ca): Điều chuyển chéo 01 nhân sự Kitting đa năng sang Cầu bốc Dock, áp dụng quy tắc ưu tiên EDD, rút ngắn chu kỳ tàu kéo Milk-run từ 20 phút xuống 15 phút/chuyến và điều Robot AMR chạy tăng cường luồng Bin.",
         "action_steps": [
-            {"time": "14:00", "stage": "Bàn giao ca", "action": "Kiểm kê tồn WIP ban đầu (19 đơn đệm), rà soát kế hoạch Line 1 và Line 2 tăng 30%."},
-            {"time": "14:15", "stage": "Supermarket & Picking", "action": "Áp dụng thuật toán sắp xếp thứ tự bốc hàng theo EDD (Earliest Due Date)."},
-            {"time": "14:30", "stage": "Loading Dock", "action": "Điều chuyển Picker NV-04 (có chứng chỉ đa kỹ năng) sang vận hành Cầu bốc số 2, nâng tổng số loader lên 3 người."},
-            {"time": "15:00", "stage": "Tugger Milk-run", "action": "Rút ngắn chu kỳ xuất bến từ 20 phút xuống 15 phút/chuyến trên tuyến cố định L1->L2->L3->L4."},
-            {"time": "16:00", "stage": "Bảo dưỡng", "action": "Xe TG3 kết thúc bảo dưỡng, đưa vào trạng thái sẵn sàng dự phòng nóng."},
-            {"time": "21:30", "stage": "Tổng kết ca", "action": "Đối soát số lượng kiện giao đến 4 chuyền, ký xác nhận vào Sổ cái điện tử."}
+            {"time": "06:00", "stage": "Bàn giao Ca S1 & Đồng bộ 5 File Excel", "action": "Hệ thống tự động gom 5 nguồn Excel (Heijunka, BOM, WMS/GTP, HR Skill, Fleet PLC), phát hiện sớm đỉnh tăng +30% trên Line 1 & Line 2 lúc 09:00–12:00."},
+            {"time": "08:30", "stage": "Siêu thị Kitting & Trạm GTP (Nhóm A/B)", "action": "Chuyển quy tắc soạn hàng từ FIFO sang EDD (Earliest Due Date); kích hoạt Robot AMR-01/02 chạy thẳng các đơn Bin khẩn cấp của Line 1 & Line 4."},
+            {"time": "09:00", "stage": "Cầu bốc Loading Dock (DK-01..03)", "action": "Điều chuyển nhân sự đa kỹ năng PK-S1-1 (Nguyễn Văn An) từ khu Kitting sang vận hành Cầu bốc số 2, nâng công suất bốc hàng từ 27p lên 40.5p/khung 15 phút."},
+            {"time": "09:30", "stage": "Kho chính & Xe nâng Forklift (Nhóm C)", "action": "Xe nâng FK-01 & FK-02 ưu tiên cấp trước 14 Pallet lốc nhôm nặng cho Line 2 trước khi sàn tập kết Dock đạt ngưỡng 12 vị trí xe lồng."},
+            {"time": "10:00", "stage": "Đoàn xe Tàu kéo Milk-run (TG-01..03)", "action": "Xe TG-03 vào trạm bảo dưỡng định kỳ (10:00–12:00). Hai xe TG-01 & TG-02 rút ngắn chu kỳ xuất bến từ 20 phút xuống 15 phút/chuyến trên tuyến L1->L2->L3->L4."},
+            {"time": "12:00", "stage": "Khôi phục Đội hình & Đối soát Sổ cái", "action": "Xe TG-03 hoàn tất bảo dưỡng quay lại tuyến. Nhân sự PK-S1-1 trở về khu Kitting. Tồn đệm chân chuyền L1–L4 duy trì > 30 phút, 0 sự cố dừng chuyền (Zero Line-Stop)."}
         ],
         "kpi_targets": {
-            "max_late_rate": "< 1.5%",
-            "max_late_minutes": "< 15 phút",
-            "dock_queue_limit": "≤ 4 đơn",
-            "lead_time_target": "≤ 28 phút"
+            "max_late_rate": "≤ 3.6% (SLA ≥ 96.4%)",
+            "max_late_minutes": "≤ 156 phút/ca (-43.1%)",
+            "dock_queue_limit": "≤ 4 đơn (Sàn tập kết < 75%)",
+            "lead_time_target": "Tồn đệm chân chuyền L1..L4 ≥ 15 phút (0 Line-Stop)"
         }
     }
 

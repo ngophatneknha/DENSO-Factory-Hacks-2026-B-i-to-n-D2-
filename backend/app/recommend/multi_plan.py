@@ -27,131 +27,185 @@ def compute_multi_objective_plans(
     gamma: float = 0.15,  # CO2 weight
     delta: float = 0.20,  # SLA violation weight
 ) -> Dict[str, Any]:
-    """Generates 4 strategic plans with quantified deltas for Cost, Delay, SLA, and CO2."""
+    """Generates 4 strategic plans with quantified deltas for Cost, Delay, SLA, CO2, and Line-Stop Risk."""
 
-    base_late_min = baseline_kpis.get("late_minutes", 120.0)
-    base_sla = max(70.0, 100.0 - (baseline_kpis.get("late_rate", 0.18) * 100.0))
-    base_cost_vnd = 250000.0
-    base_co2_kg = 18.5  # kg CO2e per shift
+    # Scale baseline metrics dynamically by demand_multiplier (1.0 = normal shift, 1.3 = +30% storyline surge, 1.5 = +50% stress)
+    surge_factor = max(0.6, (demand_multiplier / 1.3) ** 1.65)
+    raw_base_late = float(baseline_kpis.get("late_minutes", 274.0))
+    base_late_min = round(raw_base_late * surge_factor, 1)
+    base_late_rate = min(0.45, float(baseline_kpis.get("late_rate", 0.158)) * surge_factor)
+    base_sla = round(max(55.0, 100.0 - base_late_rate * 100.0), 1)
+    base_co2_kg = round(16.0 * (0.85 + 0.25 * demand_multiplier), 2)
+    base_line_stop_mins = round(max(0.0, (demand_multiplier - 1.05) * 58.0), 1)
 
-    # Plan A: Lowest Cost
+    # Normalize weights so alpha + beta + gamma + delta = 1.0
+    w_sum = max(1e-6, alpha + beta + gamma + delta)
+    w_a, w_b, w_g, w_d = alpha / w_sum, beta / w_sum, gamma / w_sum, delta / w_sum
+
+    # Plan A: Lowest Cost (Internal cross-skill reallocation only, 0 VND extra cost)
+    delay_a = round(base_late_min * 0.66, 1)
+    sla_a = min(99.2, round(base_sla + (100.0 - base_sla) * 0.45, 1))
+    co2_a = round(base_co2_kg * 0.97, 2)
+    score_a = round(w_a * 0.05 + w_b * 0.52 + w_g * 0.48 + w_d * ((100.0 - sla_a) / 15.0), 3)
     plan_a = {
         "plan_id": "PLAN_A",
         "action_id": "ACT_REASSIGN_PICK_TO_LOAD",
-        "name": "Phương án A: Tiết Kiệm Chi Phí Tối Đa (Lowest Cost)",
+        "name": "Phương án A: Điều chuyển Nhân sự Nội bộ (Lowest Cost)",
         "theme": "Cost-focused",
         "badge_color": "cyan",
-        "action_summary": "Tái phân bổ 1 Picker đa năng sang Cầu bốc hàng, giữ nguyên chu kỳ xe kéo 20 phút, không tăng ca.",
+        "action_summary": "Tái phân bổ 01 nhân sự Kitting đa năng (PK-S1-1) sang Cầu bốc Dock khung 08:30–12:30, giữ chu kỳ tàu kéo 20 phút (0đ phí tăng ca).",
         "cost_vnd": 0,
-        "delay_minutes": round(base_late_min * 0.38, 1),
-        "sla_pct": min(98.5, round(base_sla + 10.5, 1)),
-        "co2_kg": round(base_co2_kg * 0.96, 2),
+        "delay_minutes": delay_a,
+        "baseline_delay_minutes": base_late_min,
+        "sla_pct": sla_a,
+        "baseline_sla_pct": base_sla,
+        "co2_kg": co2_a,
+        "line_stop_mins_saved": round(base_line_stop_mins * 0.65, 1),
         "deltas": {
-            "delay_pct": -62.0,
+            "delay_pct": -34.0,
             "cost_pct": 0.0,
-            "sla_pct": +10.5,
-            "co2_pct": -4.0,
+            "sla_pct": round(sla_a - base_sla, 1),
+            "co2_pct": -3.0,
         },
-        "score": round(alpha * 0.0 + beta * 0.38 + gamma * 0.96 + delta * 0.12, 3),
+        "score": score_a,
         "parameters": {
             "priority": "FIFO",
             "tugger_cycle_min": 20,
             "extra_loaders": 1,
             "reassigned_workers": 1,
             "extra_tuggers": 0,
+            "demand_surge_pct": round((demand_multiplier - 1.0) * 100),
         }
     }
 
-    # Plan B: Lowest Delay / Maximum SLA
+    # Plan B: Lowest Delay / Maximum SLA (Spare Tugger + Overtime Loader + 15m Cycle + EDD)
+    delay_b = round(base_late_min * 0.34, 1)
+    sla_b = min(99.6, round(base_sla + (100.0 - base_sla) * 0.86, 1))
+    co2_b = round(base_co2_kg * 1.08, 2)
+    score_b = round(w_a * 0.92 + w_b * 0.14 + w_g * 0.78 + w_d * ((100.0 - sla_b) / 15.0), 3)
     plan_b = {
         "plan_id": "PLAN_B",
         "action_id": "ACT_ACTIVATE_SPARE_TUGGER",
-        "name": "Phương án B: Giảm Trễ Tối Đa & Bảo Đảm SLA (Lowest Delay)",
+        "name": "Phương án B: Huy động Tổng lực & Xe Dự phòng (Lowest Delay)",
         "theme": "SLA-critical",
         "badge_color": "rose",
-        "action_summary": "Rút ngắn chu kỳ xe kéo còn 15 phút, kích hoạt xe TG dự phòng nóng, bổ sung 1 loader ngoài giờ.",
+        "action_summary": "Kích hoạt tàu kéo dự phòng nóng (TG-SPARE), rút chu kỳ 15 phút, áp dụng EDD và tăng cường 01 Loader bốc hàng tại Dock.",
         "cost_vnd": 340000,
-        "delay_minutes": round(base_late_min * 0.11, 1),
-        "sla_pct": 99.2,
-        "co2_kg": round(base_co2_kg * 1.08, 2),
+        "delay_minutes": delay_b,
+        "baseline_delay_minutes": base_late_min,
+        "sla_pct": sla_b,
+        "baseline_sla_pct": base_sla,
+        "co2_kg": co2_b,
+        "line_stop_mins_saved": round(base_line_stop_mins * 1.0, 1),
         "deltas": {
-            "delay_pct": -89.0,
+            "delay_pct": -66.0,
             "cost_pct": +13.6,
-            "sla_pct": +16.2,
+            "sla_pct": round(sla_b - base_sla, 1),
             "co2_pct": +8.0,
         },
-        "score": round(alpha * 1.36 + beta * 0.11 + gamma * 1.08 + delta * 0.01, 3),
+        "score": score_b,
         "parameters": {
             "priority": "EDD",
             "tugger_cycle_min": 15,
             "extra_loaders": 1,
             "reassigned_workers": 1,
             "extra_tuggers": 1,
+            "demand_surge_pct": round((demand_multiplier - 1.0) * 100),
         }
     }
 
-    # Plan C: Balanced (Recommended Pareto)
+    # Plan C: Balanced (Recommended Pareto - Reassign 1 Picker + EDD + 15m Cycle)
+    delay_c = round(base_late_min * 0.569, 1)  # e.g., 274.0 -> 156.0 (-43.1%)
+    sla_c = min(99.1, round(base_sla + (100.0 - base_sla) * 0.772, 1))  # e.g., 84.2% -> 96.4% (+12.2%)
+    co2_c = round(base_co2_kg * 0.93, 2)
+    score_c = round(w_a * 0.24 + w_b * 0.22 + w_g * 0.28 + w_d * ((100.0 - sla_c) / 15.0), 3)
     plan_c = {
         "plan_id": "PLAN_C",
         "action_id": "ACT_COMBINED_BEST",
-        "name": "Phương án C: Cân Bằng Toàn Diện (Recommended Pareto)",
+        "name": "Phương án C: Cân Bằng Toàn Diện (Khuyến nghị Tối ưu Pareto)",
         "theme": "Balanced",
         "badge_color": "emerald",
-        "action_summary": "Áp dụng quy tắc EDD, điều chuyển chéo 1 Picker sang Loading Dock và rút ngắn chu kỳ xe kéo còn 15 phút.",
+        "action_summary": "Điều chuyển chéo 01 nhân sự Kitting đa năng sang Cầu bốc Dock (08:30–12:30) + Rút chu kỳ tàu kéo 20p → 15p + Quy tắc ưu tiên EDD.",
         "cost_vnd": 95000,
-        "delay_minutes": round(base_late_min * 0.18, 1),
-        "sla_pct": 98.4,
-        "co2_kg": round(base_co2_kg * 0.93, 2),
+        "delay_minutes": delay_c,
+        "baseline_delay_minutes": base_late_min,
+        "sla_pct": sla_c,
+        "baseline_sla_pct": base_sla,
+        "co2_kg": co2_c,
+        "line_stop_mins_saved": round(base_line_stop_mins * 0.96, 1),
         "deltas": {
-            "delay_pct": -82.0,
+            "delay_pct": -43.1,
             "cost_pct": +3.8,
-            "sla_pct": +14.8,
+            "sla_pct": round(sla_c - base_sla, 1),
             "co2_pct": -7.0,
         },
-        "score": round(alpha * 0.38 + beta * 0.18 + gamma * 0.93 + delta * 0.03, 3),
+        "score": score_c,
         "parameters": {
             "priority": "EDD",
             "tugger_cycle_min": 15,
             "extra_loaders": 1,
             "reassigned_workers": 1,
             "extra_tuggers": 0,
+            "demand_surge_pct": round((demand_multiplier - 1.0) * 100),
         }
     }
 
-    # Plan D: Green / Eco (Lowest Carbon Footprint)
+    # Plan D: Green / Eco (Lowest Carbon Footprint - Full Batch Milk-run + AMR Consolidation)
+    delay_d = round(base_late_min * 0.72, 1)
+    sla_d = min(98.5, round(base_sla + (100.0 - base_sla) * 0.52, 1))
+    co2_d = round(base_co2_kg * 0.84, 2)
+    score_d = round(w_a * 0.12 + w_b * 0.48 + w_g * 0.08 + w_d * ((100.0 - sla_d) / 15.0), 3)
     plan_d = {
         "plan_id": "PLAN_D",
         "action_id": "ACT_TIGHTEN_CYCLE",
-        "name": "Phương án D: Tối Ưu Hóa Bền Vững & Giảm Phát Thải CO2 (Green Logistics)",
+        "name": "Phương án D: Tối Ưu Hóa Bền Vững & Giảm Phát Thải CO₂ (Green Logistics)",
         "theme": "Sustainability",
         "badge_color": "teal",
-        "action_summary": "Gom tối đa 8 đơn/chuyến xe, tối ưu tuyến đường hồi chuyển và chuyển quy tắc bốc dỡ sang EDD.",
-        "cost_vnd": 25000,
-        "delay_minutes": round(base_late_min * 0.44, 1),
-        "sla_pct": 96.1,
-        "co2_kg": round(base_co2_kg * 0.84, 2),
+        "action_summary": "Gom tối đa 8 đơn/chuyến Milk-run, điều Robot AMR chạy đơn lẻ khẩn cấp và chuyển quy tắc bốc dỡ sang EDD để triệt tiêu km chạy rỗng.",
+        "cost_vnd": 45000,
+        "delay_minutes": delay_d,
+        "baseline_delay_minutes": base_late_min,
+        "sla_pct": sla_d,
+        "baseline_sla_pct": base_sla,
+        "co2_kg": co2_d,
+        "line_stop_mins_saved": round(base_line_stop_mins * 0.72, 1),
         "deltas": {
-            "delay_pct": -56.0,
-            "cost_pct": +1.0,
-            "sla_pct": +11.2,
+            "delay_pct": -28.0,
+            "cost_pct": +1.8,
+            "sla_pct": round(sla_d - base_sla, 1),
             "co2_pct": -16.0,
         },
-        "score": round(alpha * 0.10 + beta * 0.44 + gamma * 0.84 + delta * 0.08, 3),
+        "score": score_d,
         "parameters": {
             "priority": "EDD",
-            "tugger_cycle_min": 25,
+            "tugger_cycle_min": 20,
             "extra_loaders": 1,
             "reassigned_workers": 0,
             "extra_tuggers": 0,
+            "demand_surge_pct": round((demand_multiplier - 1.0) * 100),
         }
     }
 
-    plans = [plan_c, plan_a, plan_b, plan_d]  # Best first
+    plans = [plan_c, plan_a, plan_b, plan_d]
+    plans.sort(key=lambda p: p["score"])
+    best = plans[0]
+
     return {
-        "weights": {"alpha_cost": alpha, "beta_delay": beta, "gamma_co2": gamma, "delta_sla": delta},
+        "weights": {"alpha_cost": round(w_a, 2), "beta_delay": round(w_b, 2), "gamma_co2": round(w_g, 2), "delta_sla": round(w_d, 2)},
+        "demand_multiplier": demand_multiplier,
+        "baseline": {
+            "delay_minutes": base_late_min,
+            "sla_pct": base_sla,
+            "co2_kg": base_co2_kg,
+            "line_stop_mins": base_line_stop_mins,
+        },
         "plans": plans,
-        "recommended_plan_id": "PLAN_C",
-        "summary": "Phương án C đạt hiệu quả Pareto cao nhất: Giảm 82.0% thời gian trễ và tăng SLA lên 98.4% với chi phí chỉ tăng thêm 3.8% (95,000 đ), đồng thời cắt giảm 7.0% lượng phát thải CO2.",
+        "recommended_plan_id": best["plan_id"],
+        "summary": (
+            f"Với hệ số nhu cầu {demand_multiplier:.1f}x và bộ trọng số hiện tại, '{best['name']}' đạt điểm tối ưu cao nhất "
+            f"(J = {best['score']}): Giảm {abs(best['deltas']['delay_pct']):.1f}% phút trễ (còn {best['delay_minutes']} phút/ca), "
+            f"nâng SLA từ {base_sla}% lên {best['sla_pct']}% với chi phí phụ trội {best['cost_vnd']:,.0f} đ/ca."
+        ),
     }
 
 
@@ -161,25 +215,33 @@ def solve_counterfactual_recommendation(target_sla: float = 95.0) -> Dict[str, A
         return {
             "target_sla": target_sla,
             "achievable": True,
-            "minimal_intervention": "Không cần can thiệp thêm nguồn lực. Giữ nguyên đội hình hiện tại.",
-            "resource_increments": {"extra_loaders": 0, "tugger_cycle_min": 20, "extra_cost_vnd": 0},
-            "confidence_pct": 94.0,
+            "minimal_intervention": "Không cần bổ sung nguồn lực. Giữ nguyên đội hình hiện tại (FIFO, Chu kỳ 20 phút).",
+            "resource_increments": {"extra_loaders": 0, "tugger_cycle_min": 20, "priority": "FIFO", "extra_tuggers": 0, "extra_cost_vnd": 0},
+            "confidence_pct": 95.2,
         }
-    elif target_sla <= 95.0:
+    elif target_sla <= 92.0:
         return {
             "target_sla": target_sla,
             "achievable": True,
-            "minimal_intervention": "Chỉ cần chuyển 1 Picker (NV-04) sang hỗ trợ Cầu bốc Dock 2 từ 14:00 - 18:00 và áp dụng quy tắc ưu tiên EDD.",
-            "resource_increments": {"extra_loaders": 1, "tugger_cycle_min": 20, "extra_cost_vnd": 0},
-            "confidence_pct": 91.5,
+            "minimal_intervention": "Chuyển quy tắc xếp hàng sang EDD (Earliest Due Date) và điều 01 nhân sự Kitting đa năng (PK-S1-1) sang hỗ trợ Cầu bốc Dock 2 từ 08:30 – 12:30.",
+            "resource_increments": {"extra_loaders": 1, "tugger_cycle_min": 20, "priority": "EDD", "extra_tuggers": 0, "extra_cost_vnd": 0},
+            "confidence_pct": 92.8,
         }
-    else:  # e.g. 98%+
+    elif target_sla <= 97.0:
         return {
             "target_sla": target_sla,
             "achievable": True,
-            "minimal_intervention": "Cần can thiệp kép: Điều chuyển 1 Picker sang Dock + Rút ngắn chu kỳ xe Tugger từ 20 phút xuống 15 phút/chuyến.",
-            "resource_increments": {"extra_loaders": 1, "tugger_cycle_min": 15, "extra_cost_vnd": 95000},
-            "confidence_pct": 89.2,
+            "minimal_intervention": "Áp dụng Phương án C (Tối ưu Pareto): Điều chuyển 01 nhân sự Kitting sang Dock (08:30–12:30) + Rút chu kỳ tàu kéo từ 20p xuống 15p/chuyến + Quy tắc EDD.",
+            "resource_increments": {"extra_loaders": 1, "tugger_cycle_min": 15, "priority": "EDD", "extra_tuggers": 0, "extra_cost_vnd": 95000},
+            "confidence_pct": 91.4,
+        }
+    else:  # > 97% up to 99.5%
+        return {
+            "target_sla": target_sla,
+            "achievable": True,
+            "minimal_intervention": "Áp dụng Phương án B (Bảo đảm SLA Tuyệt đối): Điều chuyển 01 Loader + Rút chu kỳ 15p + Kích hoạt tàu kéo dự phòng nóng (TG-SPARE) trong khung 08:30–12:30.",
+            "resource_increments": {"extra_loaders": 1, "tugger_cycle_min": 15, "priority": "EDD", "extra_tuggers": 1, "extra_cost_vnd": 340000},
+            "confidence_pct": 89.6,
         }
 
 

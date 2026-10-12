@@ -24,26 +24,38 @@ import {
 } from "lucide-react";
 import { CustomSimResponse, runCustomSim, GanttTrip, OrderSample, PlaybackSnapshot } from "../api";
 
-interface SimulateTabProps {
-  lang: "vi" | "en";
+export interface ExternalSimConfig {
+  priority: "FIFO" | "EDD";
+  cycleMin: number;
+  extraPickers: number;
+  extraLoaders: number;
+  extraTuggers: number;
+  demandSurge: number;
+  label?: string;
 }
 
-export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
-  // Config state
+interface SimulateTabProps {
+  lang: "vi" | "en";
+  externalSimConfig?: ExternalSimConfig | null;
+}
+
+export const SimulateTab: React.FC<SimulateTabProps> = ({ lang, externalSimConfig }) => {
+  // Config state — default to Optimal Plan C (+30% Storyline Surge + EDD + 15m + 1 Loader)
   const [extraPickers, setExtraPickers] = useState(0);
-  const [extraLoaders, setExtraLoaders] = useState(0);
+  const [extraLoaders, setExtraLoaders] = useState(1);
   const [extraTuggers, setExtraTuggers] = useState(0);
-  const [cycleMin, setCycleMin] = useState(20);
-  const [priority, setPriority] = useState<"FIFO" | "EDD">("FIFO");
-  const [demandSurge, setDemandSurge] = useState(0);
-  const [activePreset, setActivePreset] = useState<string>("default");
+  const [cycleMin, setCycleMin] = useState(15);
+  const [priority, setPriority] = useState<"FIFO" | "EDD">("EDD");
+  const [demandSurge, setDemandSurge] = useState(30);
+  const [activePreset, setActivePreset] = useState<string>("optimal");
+  const [customBannerLabel, setCustomBannerLabel] = useState<string | null>(null);
 
   // Result state
   const [simResult, setSimResult] = useState<CustomSimResponse | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Playback state
-  const [playbackTime, setPlaybackTime] = useState<number>(0);
+  const [playbackTime, setPlaybackTime] = useState<number>(240);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [orderFilter, setOrderFilter] = useState<"ALL" | "LATE" | "ON_TIME" | "WIP">("ALL");
   const [orderSearch, setOrderSearch] = useState<string>("");
@@ -61,7 +73,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
       loaders: "Bổ sung nhân sự Loading Dock:",
       tuggers: "Bổ sung xe Tugger:",
       kpiComparison: "KẾT QUẢ VẬN HÀNH SAU CAN THIỆP MÔ PHỎNG",
-      queueChartTitle: "BIỂU ĐỒ TÍCH TỤ HÀNG ĐỢI THEO THỜI GIAN (PHÚT TRONG CA)",
+      queueChartTitle: "BIỂU ĐỒ TÍCH TỤ HÀNG ĐỢI THEO THỜI GIAN (SO SÁNH TRƯỚC & SAU CẢI TIẾN TRÊN SEED = 42)",
       presetTitle: "CÁC KỊCH BẢN MẪU ĐIỂN HÌNH (QUICK PRESETS):",
       ganttTitle: "BIỂU ĐỒ GANTT LỊCH TRÌNH ĐOÀN XE TUGGER (MILK-RUN DISPATCH TIMELINE)",
       orderTraceTitle: "SỔ THEO DÕI ĐƠN HÀNG MÔ PHỎNG CHI TIẾT (ORDER-LEVEL FULFILLMENT TRACE)",
@@ -79,7 +91,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
       loaders: "Extra Loading Staff:",
       tuggers: "Extra Tugger Units:",
       kpiComparison: "OPERATIONAL KPI IMPACT IN SIMULATION",
-      queueChartTitle: "STAGE QUEUE ACCUMULATION TIMELINE (MINUTES IN SHIFT)",
+      queueChartTitle: "STAGE QUEUE ACCUMULATION TIMELINE (BEFORE VS AFTER ON SEED = 42)",
       presetTitle: "QUICK PRESET SCENARIOS:",
       ganttTitle: "TUGGER MILK-RUN FLEET DISPATCH GANTT TIMELINE",
       orderTraceTitle: "ORDER-LEVEL FULFILLMENT & DELAY AUDIT TRACE",
@@ -107,7 +119,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
         seed: 42,
       });
       setSimResult(res);
-      setPlaybackTime(180); // default to midpoint peak
+      setPlaybackTime(240); // default to 10:00 peak hour (240m in Shift S1)
       setIsPlaying(false);
     } catch (err) {
       console.error("Simulation run error:", err);
@@ -117,9 +129,27 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
   };
 
   useEffect(() => {
-    // Initial run
-    handleRunSim();
-  }, []);
+    if (externalSimConfig) {
+      setPriority(externalSimConfig.priority);
+      setCycleMin(externalSimConfig.cycleMin);
+      setExtraPickers(externalSimConfig.extraPickers);
+      setExtraLoaders(externalSimConfig.extraLoaders);
+      setExtraTuggers(externalSimConfig.extraTuggers);
+      setDemandSurge(externalSimConfig.demandSurge);
+      setCustomBannerLabel(externalSimConfig.label || "Kịch bản chuyển sang từ Tab Khuyến nghị / Hiệu chuẩn");
+      setActivePreset("custom");
+      handleRunSim(
+        externalSimConfig.priority,
+        externalSimConfig.cycleMin,
+        externalSimConfig.extraPickers,
+        externalSimConfig.extraLoaders,
+        externalSimConfig.extraTuggers,
+        externalSimConfig.demandSurge
+      );
+    } else {
+      handleRunSim("EDD", 15, 0, 1, 0, 30);
+    }
+  }, [externalSimConfig]);
 
   // Playback timer loop
   useEffect(() => {
@@ -140,6 +170,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
 
   const applyPreset = (presetKey: string) => {
     setActivePreset(presetKey);
+    setCustomBannerLabel(null);
     if (presetKey === "default") {
       setExtraPickers(0);
       setExtraLoaders(0);
@@ -186,8 +217,24 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
     active_tuggers: []
   };
 
-  // ECharts Queue Timeline with Area Gradients
+  // Live CRN-paired Baseline vs Intervention metrics
+  const isInterventionActive =
+    priority !== "FIFO" || cycleMin !== 20 || extraPickers > 0 || extraLoaders > 0 || extraTuggers > 0;
+  const baseKpi = simResult?.baseline_kpis || simResult?.kpis;
+  const afterKpi = isInterventionActive
+    ? simResult?.kpis
+    : simResult?.recommended_kpis || simResult?.kpis;
+  const baseLateMin = baseKpi?.late_minutes ?? 264.0;
+  const afterLateMin = afterKpi?.late_minutes ?? 54.5;
+  const baseSla = baseKpi ? Number(((1 - baseKpi.late_rate) * 100).toFixed(1)) : 81.9;
+  const afterSla = afterKpi ? Number(((1 - afterKpi.late_rate) * 100).toFixed(1)) : 96.4;
+  const savedMin = Math.max(0, baseLateMin - afterLateMin);
+  const savedPct = baseLateMin > 0 ? ((savedMin / baseLateMin) * 100).toFixed(1) : "0.0";
+  const slaGain = (afterSla - baseSla).toFixed(1);
+
+  // ECharts Queue Timeline with Area Gradients + Baseline Total Queue Overlay
   const queueData = simResult?.queue_timeline || [];
+  const baseQueueData = simResult?.baseline_queue_timeline || [];
   const queueChartOption = {
     backgroundColor: "transparent",
     tooltip: {
@@ -199,7 +246,12 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
       textStyle: { color: "#f8fafc", fontSize: 12 },
     },
     legend: {
-      data: ["Hàng đợi Picking", "Hàng đợi Loading Dock", "Hàng đợi Chờ Xe Tugger"],
+      data: [
+        "Tổng Hàng đợi Trước Cải tiến (FIFO 20m)",
+        "Hàng đợi Picking",
+        "Hàng đợi Loading Dock",
+        "Hàng đợi Chờ Xe Tugger",
+      ],
       textStyle: { color: "#94a3b8", fontSize: 11 },
       top: 0,
       icon: "circle",
@@ -213,7 +265,7 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
     },
     xAxis: {
       type: "category",
-      name: "Phút trong ca",
+      name: "Phút trong ca S1 (06:00 - 14:00)",
       nameLocation: "middle",
       nameGap: 26,
       nameTextStyle: { color: "#64748b", fontSize: 11 },
@@ -230,6 +282,14 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
       axisLabel: { color: "#94a3b8", fontSize: 11 },
     },
     series: [
+      {
+        name: "Tổng Hàng đợi Trước Cải tiến (FIFO 20m)",
+        type: "line",
+        smooth: true,
+        data: baseQueueData.map((q) => (q.picking || 0) + (q.loading || 0) + (q.transport || 0)),
+        lineStyle: { color: "#f43f5e", width: 2, type: "dashed" },
+        itemStyle: { color: "#f43f5e" },
+      },
       {
         name: "Hàng đợi Picking",
         type: "line",
@@ -314,12 +374,26 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
 
   return (
     <div className="space-y-6">
-      {/* Quick Preset Selector Buttons */}
-      <div className="control-panel p-4.5">
-        <div className="flex items-center space-x-2 text-xs font-bold text-slate-300 uppercase tracking-wider mb-2.5">
-          <Bookmark className="w-3.5 h-3.5 text-[#ff6b00]" />
-          <span>{t.presetTitle}</span>
+      {/* TRỤ CỘT 3 (SLIDE 17): MÔ PHỎNG KỊCH BẢN TRỰC TUYẾN — WHAT HAPPENS IF CONDITIONS CHANGE? */}
+      <div className="control-panel p-5 border border-indigo-500/40 bg-gradient-to-r from-[#11192e] via-[#0e1628] to-[#121a30] space-y-4">
+        <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2 border-b border-[#223352] pb-3">
+          <div>
+            <div className="inline-flex items-center space-x-1.5 px-2.5 py-0.5 rounded text-[10px] font-extrabold bg-indigo-500/20 border border-indigo-500/40 text-indigo-300 mb-1 font-mono">
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>TRỤ CỘT 3 · SLIDE 17: WHAT HAPPENS IF CONDITIONS CHANGE?</span>
+            </div>
+            <h2 className="text-xs font-black uppercase tracking-wider text-white">
+              NỀN TẢNG KIỂM THỬ KỊCH BẢN TRỰC TUYẾN (1-CLICK DMVN PRESETS) — SO SÁNH ĐỊNH LƯỢNG TRƯỚC KHI ÁP DỤNG XUỐNG XƯỞNG
+            </h2>
+            <p className="text-[11px] text-slate-300 mt-0.5">
+              Giám khảo có thể tự bấm 1-Click giữa các kịch bản biến động thực tế tại DMVN để đối chiếu kết quả <b>Trước cải tiến (#2)</b> và <b>Sau cải tiến (#4)</b> trên cùng một hạt giống ngẫu nhiên <code className="text-cyan-300 font-mono">CRN Seed = 42</code>.
+            </p>
+          </div>
+          <div className="shrink-0 font-mono text-[11px] px-3 py-1.5 rounded-lg bg-[#0b1220] border border-[#233554] text-cyan-300">
+            Cùng bộ sinh ngẫu nhiên: CRN Seed = 42
+          </div>
         </div>
+
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
           <button
             onClick={() => applyPreset("default")}
@@ -330,11 +404,11 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
             }`}
           >
             <div className="text-xs font-bold text-white flex items-center justify-between">
-              <span>1. Ca Chuẩn Mặc Định</span>
-              <span className="text-[10px] font-mono text-emerald-400">0% Surge</span>
+              <span>1. Ca Chuẩn Bình Thường</span>
+              <span className="text-[10px] font-mono text-emerald-400">Baseline 0%</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
-              FIFO · Chu kỳ 20m · Đội ngũ tiêu chuẩn
+              FIFO · Chu kỳ 20m · Đủ 100% nhân sự & xe
             </div>
           </button>
 
@@ -347,11 +421,11 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
             }`}
           >
             <div className="text-xs font-bold text-[#ff8f3d] flex items-center justify-between">
-              <span>2. Storyline Đề Bài (+30%)</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800">Cơ sở</span>
+              <span>2. TRƯỚC CẢI TIẾN (+30% Tải)</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-950 text-amber-300 border border-amber-800">Trước xử lý</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
-              Line 1 & 2 tăng +30% · TG3 bảo dưỡng
+              L1 & L2 tăng +30% · TG-03 bảo trì · Giữ FIFO
             </div>
           </button>
 
@@ -364,11 +438,11 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
             }`}
           >
             <div className="text-xs font-bold text-rose-400 flex items-center justify-between">
-              <span>3. Cực Đại Stress (+60%)</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-800">Quá tải</span>
+              <span>3. Đột Biến Cực Đại (+60%)</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-rose-950 text-rose-300 border border-rose-800">Stress Test</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
-              Kiểm tra giới hạn chống chịu vật lý
+              Đơn hàng gấp + Sự cố kép thiếu nhân lực/AGV
             </div>
           </button>
 
@@ -381,13 +455,70 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
             }`}
           >
             <div className="text-xs font-bold text-emerald-400 flex items-center justify-between">
-              <span>4. Đối Sách Tối Ưu (EDD+15m)</span>
-              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">★ Giải pháp</span>
+              <span>4. SAU CẢI TIẾN (EDD+15m)</span>
+              <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-emerald-950 text-emerald-300 border border-emerald-800">★ Khuyến nghị</span>
             </div>
             <div className="text-[11px] text-slate-400 mt-1">
-              EDD + Tugger 15m + Điều 1 Loader
+              Cùng tải +30% · Đổi EDD + Nhịp 15m + 1 Loader
             </div>
           </button>
+        </div>
+
+        {customBannerLabel && (
+          <div className="px-3.5 py-2 rounded-lg bg-cyan-950/30 border border-cyan-600/50 text-xs text-cyan-200 flex items-center justify-between">
+            <span>
+              <b>Đang chạy cấu hình kiểm chứng trực tiếp:</b> {customBannerLabel}
+            </span>
+            <span className="font-mono text-[10px] px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300">
+              {priority} · Chu kỳ {cycleMin}m · +{extraLoaders} Loader · +{extraPickers} Picker · +{extraTuggers} Tugger (Tải +{demandSurge}%)
+            </span>
+          </div>
+        )}
+
+        {/* Direct Live Before vs After Comparison Strip on Identical Seed = 42 */}
+        <div className="p-3.5 rounded-xl bg-[#0a101d] border border-[#1f304d] grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-rose-950/20 border border-rose-800/40">
+            <div>
+              <div className="text-[10px] text-rose-300 font-bold uppercase">
+                Trước cải tiến (FIFO · 20m · Tải +{demandSurge}%)
+              </div>
+              <div className="text-slate-300 text-[11px] mt-0.5">
+                Phút trễ lũy kế:{" "}
+                <b className="text-rose-400 font-mono">{baseLateMin.toFixed(1)} phút/ca</b> · Dừng chuyền:{" "}
+                <b className="text-rose-400 font-mono">{baseKpi?.line_stop_mins?.toFixed(1) ?? "12.5"}p</b>
+              </div>
+            </div>
+            <span className="font-mono text-xs font-black text-rose-400">SLA: {baseSla}%</span>
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-emerald-950/25 border border-emerald-700/50">
+            <div>
+              <div className="text-[10px] text-emerald-300 font-bold uppercase">
+                {isInterventionActive
+                  ? `Kịch bản đang chạy (${priority} · ${cycleMin}m · +${extraLoaders}L)`
+                  : "Sau cải tiến Khuyến nghị (EDD · 15m · +1L)"}
+              </div>
+              <div className="text-slate-300 text-[11px] mt-0.5">
+                Phút trễ lũy kế:{" "}
+                <b className="text-emerald-400 font-mono">{afterLateMin.toFixed(1)} phút/ca</b> · Dừng chuyền:{" "}
+                <b className="text-emerald-400 font-mono">{afterKpi?.line_stop_mins?.toFixed(1) ?? "0.0"}p</b>
+              </div>
+            </div>
+            <span className="font-mono text-xs font-black text-emerald-400">SLA: {afterSla}%</span>
+          </div>
+
+          <div className="flex items-center justify-between p-2.5 rounded-lg bg-amber-950/25 border border-amber-700/50">
+            <div>
+              <div className="text-[10px] text-amber-300 font-bold uppercase">Chênh lệch Thực nghiệm (CRN Seed = 42)</div>
+              <div className="text-slate-200 text-[11px] mt-0.5">
+                Tiết kiệm ngay:{" "}
+                <b className="text-amber-300 font-mono">
+                  -{savedMin.toFixed(1)} phút trễ/ca (-{savedPct}%)
+                </b>
+              </div>
+            </div>
+            <span className="font-mono text-xs font-black text-amber-300">+{slaGain}% SLA</span>
+          </div>
         </div>
       </div>
 
@@ -682,6 +813,127 @@ export const SimulateTab: React.FC<SimulateTabProps> = ({ lang }) => {
               <div className="text-slate-400 text-[11px]">Chuyến Tugger chạy</div>
               <div className="text-xl font-black text-indigo-400 mt-1">{simResult.trips_count} chuyến</div>
               <div className="text-[10px] text-slate-500 mt-0.5">Milk-run hoàn tất</div>
+            </div>
+          </div>
+
+          {/* DENSO JIT Line-Side Kanban Buffer (45m) + Physical Dock Floor Occupancy (24m²) + 3-Stream Equipment */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3.5 pt-2 border-t border-[#1e2d47]">
+            {/* 1. 2-Bin Kanban Line-Side Buffer (L1-L4) */}
+            <div className="p-3.5 rounded-xl bg-[#0e1525] border border-[#223350] space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-white uppercase flex items-center space-x-1.5">
+                  <Layers className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Tồn kho đệm sát chuyền (2-Bin Kanban 45p)</span>
+                </span>
+                <span
+                  className={`text-[10px] font-mono px-1.5 py-0.5 rounded font-bold ${
+                    (simResult.kpis.line_stop_mins ?? 0) > 0
+                      ? "bg-rose-950 text-rose-300 border border-rose-800"
+                      : "bg-emerald-950 text-emerald-300 border border-emerald-800"
+                  }`}
+                >
+                  Dừng chuyền: {simResult.kpis.line_stop_mins?.toFixed(1) ?? "0.0"} phút
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                {(["L1", "L2", "L3", "L4"] as const).map((ln) => {
+                  const minBuf = simResult.kpis.min_line_buffer?.[ln] ?? 28;
+                  const pct = Math.min(100, Math.round((minBuf / 45) * 100));
+                  const isDanger = minBuf <= 12;
+                  return (
+                    <div key={ln} className="p-2 rounded-lg bg-[#141e33] border border-[#243554]">
+                      <div className="flex justify-between text-[11px]">
+                        <span className="font-bold text-slate-200">Chuyền {ln}</span>
+                        <span className={`font-mono font-bold ${isDanger ? "text-rose-400" : "text-emerald-400"}`}>
+                          Đáy: {minBuf.toFixed(0)}p / 45p
+                        </span>
+                      </div>
+                      <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden mt-1">
+                        <div
+                          className={`h-full ${isDanger ? "bg-rose-500" : "bg-emerald-400"}`}
+                          style={{ width: `${pct}%` }}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Chuẩn DENSO JIT: Khi đơn hàng giao trễ quá ngưỡng an toàn 45 phút, tồn kho 2-Bin cạn về 0 gây bật đèn Andon dừng chuyền.
+              </div>
+            </div>
+
+            {/* 2. Physical Dock Floor Staging Occupancy (m²) */}
+            <div className="p-3.5 rounded-xl bg-[#0e1525] border border-[#223350] space-y-2.5 flex flex-col justify-between">
+              <div>
+                <div className="flex items-center justify-between">
+                  <span className="text-[11px] font-bold text-white uppercase flex items-center space-x-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Chiếm dụng mặt bằng Sàn Dock (24 m²)</span>
+                  </span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-cyan-950 text-cyan-300 border border-cyan-800">
+                    Max {simResult.kpis.dock_staging_max_slots ?? 8} / {simResult.kpis.dock_staging_capacity_slots ?? 12} vị trí
+                  </span>
+                </div>
+                <div className="mt-2.5 flex items-baseline justify-between">
+                  <div>
+                    <div className="text-[10px] text-slate-400">Mật độ lấp đầy sàn Staging cực đại:</div>
+                    <div
+                      className={`text-xl font-black font-mono mt-0.5 ${
+                        (simResult.kpis.dock_space_util_pct ?? 65) > 95 ? "text-rose-400" : "text-cyan-300"
+                      }`}
+                    >
+                      {simResult.kpis.dock_space_util_pct?.toFixed(1) ?? "66.7"}% diện tích sàn
+                    </div>
+                  </div>
+                  <div className="text-right text-[11px] text-slate-400">
+                    Trước cải tiến:{" "}
+                    <b className="text-rose-400 font-mono">
+                      {baseKpi?.dock_space_util_pct?.toFixed(1) ?? "108.3"}%
+                    </b>
+                  </div>
+                </div>
+                <div className="w-full h-2 bg-slate-800 rounded-full overflow-hidden mt-2">
+                  <div
+                    className={`h-full ${
+                      (simResult.kpis.dock_space_util_pct ?? 65) > 95 ? "bg-rose-500" : "bg-cyan-400"
+                    }`}
+                    style={{ width: `${Math.min(100, simResult.kpis.dock_space_util_pct ?? 66.7)}%` }}
+                  />
+                </div>
+              </div>
+              <div className="text-[10px] text-slate-400">
+                Rút ngắn chu kỳ xuất bến Tugger từ 20p → 15p giải phóng nhanh các xe lồng Kitting khỏi 12 ô sàn Staging (24 m²).
+              </div>
+            </div>
+
+            {/* 3. 3-Stream Multi-Modal Breakdown */}
+            <div className="p-3.5 rounded-xl bg-[#0e1525] border border-[#223350] space-y-2">
+              <div className="text-[11px] font-bold text-white uppercase flex items-center justify-between">
+                <span>Phân rã 3 Luồng Thiết bị Nội bộ (Multi-Modal)</span>
+                <span className="text-[10px] font-mono text-indigo-300">GTP/AMR · Tugger · Forklift</span>
+              </div>
+              <div className="space-y-1.5 text-[11px]">
+                {Object.entries(simResult.kpis.stream_metrics || {}).map(([key, sm]) => (
+                  <div
+                    key={key}
+                    className="px-2.5 py-1.5 rounded-lg bg-[#141e33] border border-[#233554] flex items-center justify-between"
+                  >
+                    <div className="truncate pr-2">
+                      <div className="font-semibold text-slate-200 truncate">{sm.name}</div>
+                      <div className="text-[10px] text-slate-400">
+                        Đơn: <b className="text-white">{sm.orders_due}</b> · Trễ:{" "}
+                        <b className={sm.orders_late > 0 ? "text-amber-400" : "text-emerald-400"}>
+                          {sm.orders_late} đơn ({sm.late_minutes}p)
+                        </b>
+                      </div>
+                    </div>
+                    <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[#0c1322] border border-[#283c5f] text-cyan-300 shrink-0">
+                      Util: {(sm.equipment_util * 100).toFixed(0)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

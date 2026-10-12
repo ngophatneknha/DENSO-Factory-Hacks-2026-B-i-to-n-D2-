@@ -59,8 +59,14 @@ def generate_plan(cfg: FactoryConfig, first_day: pd.Timestamp, n_days: int, rng:
                     qty = line.base_plan_per_hour * day_factor[di] * line_f * _shift_factor(shift, day)
                     if h == change_hour:
                         qty *= 0.4  # changeover
-                    if demo_day is not None and day == demo_day.normalize() and shift == "S2" and line.id in ("L1", "L2"):
-                        qty *= 1.30
+                    if demo_day is not None and day == demo_day.normalize():
+                        # Storyline: urgent order surge on L1 & L2 during S1 peak (09:00-12:00, h=3,4,5) and S2
+                        if shift == "S1" and h in (3, 4, 5) and line.id in ("L1", "L2"):
+                            qty *= 1.48
+                        elif shift == "S1" and h in (3, 4, 5) and line.id in ("L3", "L4"):
+                            qty *= 1.22
+                        elif shift == "S2" and line.id in ("L1", "L2"):
+                            qty *= 1.30
                     qty = float(round(qty))
                     rows.append({"line_id": line.id, "hour_start": hs, "planned_qty": qty,
                                  "revision_no": 0, "revision_time": release0})
@@ -197,9 +203,22 @@ def generate_dataset(seed: int = 42, now: pd.Timestamp = DEFAULT_NOW, history_da
     calendar = build_calendar(cfg, t_start, history_days + FUTURE_DAYS)
     dis = generate_disruptions(cfg, calendar[calendar["start_at"] < now], rng)
     dis = dis[dis["end_at"] <= now]
-    demo_dis = pd.DataFrame([{"start_at": now.normalize() + pd.Timedelta(hours=13),
-                              "end_at": now.normalize() + pd.Timedelta(hours=16), "resource_id": "TG3",
-                              "reason_code": "PLANNED_MAINTENANCE", "known_in_advance": True}])
+    demo_dis = pd.DataFrame([
+        {
+            "start_at": now.normalize() + pd.Timedelta(hours=10),
+            "end_at": now.normalize() + pd.Timedelta(hours=12),
+            "resource_id": "TG3",
+            "reason_code": "PLANNED_MAINTENANCE",
+            "known_in_advance": True,
+        },
+        {
+            "start_at": now.normalize() + pd.Timedelta(hours=15),
+            "end_at": now.normalize() + pd.Timedelta(hours=17),
+            "resource_id": "TG3",
+            "reason_code": "PLANNED_MAINTENANCE",
+            "known_in_advance": True,
+        },
+    ])
     dis_all = pd.concat([dis, demo_dis], ignore_index=True)
 
     prog(0.25, "simulate history")
@@ -240,7 +259,7 @@ def generate_dataset(seed: int = 42, now: pd.Timestamp = DEFAULT_NOW, history_da
         "n_events": int(len(events)),
         "sim_logic_errors": res.logic_errors,
         "generated_seconds": round(time.time() - tick, 1),
-        "storyline": "S2 plan +30% on L1/L2 (new model ramp-up); TG3 planned maintenance 13:00-16:00",
+        "storyline": "Ca S1 (06:00-14:00): Đơn hàng L1/L2 tăng đột biến +30% khung 09:00-12:00 kết hợp Tàu kéo TG-03 bảo dưỡng định kỳ 10:00-12:00",
     }
     prog(1.0, "done")
     return {

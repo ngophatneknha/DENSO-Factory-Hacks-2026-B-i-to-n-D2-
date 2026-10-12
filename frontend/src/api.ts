@@ -154,25 +154,67 @@ export interface PlaybackSnapshot {
   active_tuggers: string[];
 }
 
+export interface SimKPIs {
+  n_due: number;
+  n_late: number;
+  late_rate: number;
+  late_minutes: number;
+  lead_p50: number;
+  lead_p90: number;
+  throughput: number;
+  max_queue: Record<string, number>;
+  utilization: Record<string, number>;
+  trips: number;
+  line_buffers_ts?: Array<{
+    t: number;
+    L1: number;
+    L2: number;
+    L3: number;
+    L4: number;
+  }>;
+  min_line_buffer?: Record<string, number>;
+  andon_warnings?: number;
+  line_stop_mins?: number;
+  dock_staging_max_slots?: number;
+  dock_staging_capacity_slots?: number;
+  dock_space_util_pct?: number;
+  stream_metrics?: Record<
+    string,
+    {
+      name: string;
+      orders_due: number;
+      orders_late: number;
+      late_minutes: number;
+      equipment_util: number;
+    }
+  >;
+}
+
 export interface CustomSimResponse {
-  kpis: {
-    n_due: number;
-    n_late: number;
-    late_rate: number;
-    late_minutes: number;
-    lead_p50: number;
-    lead_p90: number;
-    throughput: number;
-    max_queue: Record<string, number>;
-    utilization: Record<string, number>;
-    trips: number;
-  };
+  kpis: SimKPIs;
+  baseline_kpis?: SimKPIs;
+  recommended_kpis?: SimKPIs;
   logic_errors: string[];
   queue_timeline: Array<{
     t: number;
     picking: number;
     loading: number;
     transport: number;
+    total?: number;
+  }>;
+  baseline_queue_timeline?: Array<{
+    t: number;
+    picking: number;
+    loading: number;
+    transport: number;
+    total: number;
+  }>;
+  recommended_queue_timeline?: Array<{
+    t: number;
+    picking: number;
+    loading: number;
+    transport: number;
+    total: number;
   }>;
   trips_count: number;
   trips_gantt?: GanttTrip[];

@@ -37,7 +37,7 @@ class ItemGroupCfg:
 
 @dataclass
 class CostCfg:
-    late_minute_vnd: float = 2500.0  # conversion of 1 late-minute -> VND (needs business approval)
+    late_minute_vnd: float = 4500.0  # conversion of 1 late-minute -> VND (needs business approval)
     overtime_hour_vnd: float = 95000.0  # internal staff overtime per person-hour
     temp_worker_hour_vnd: float = 120000.0
     tugger_trip_vnd: float = 6000.0  # energy + wear per trip
@@ -62,9 +62,9 @@ class FactoryConfig:
     tugger_capacity: int = 8
     tugger_cycle_min: float = 20.0
     tugger_dock_load_min: float = 1.0
-    tugger_load_per_req_min: float = 0.25
-    unload_per_req_min: float = 0.8
-    due_minutes: float = 45.0  # JIT intralogistics standard buffer (45 min lead time SLA)
+    tugger_load_per_req_min: float = 0.22
+    unload_per_req_min: float = 0.55
+    due_minutes: float = 40.0  # JIT intralogistics standard buffer (40-45 min lead time SLA)
     efficiency: float = 0.9  # share of paid time usable for work (capacity model)
     break_offsets_min: List[int] = field(default_factory=lambda: [240, 270])
     break_len_min: int = 30
@@ -104,15 +104,15 @@ class FactoryConfig:
 def default_config() -> FactoryConfig:
     return FactoryConfig(
         lines=[
-            LineCfg("L1", "Line 1 · Compressor", 120, 0.105, {"A": 0.50, "B": 0.35, "C": 0.15}, 3.0, 5.0),
-            LineCfg("L2", "Line 2 · Radiator", 95, 0.115, {"A": 0.35, "B": 0.40, "C": 0.25}, 5.5, 5.5),
-            LineCfg("L3", "Line 3 · Starter", 100, 0.100, {"A": 0.55, "B": 0.30, "C": 0.15}, 8.5, 5.0),
-            LineCfg("L4", "Line 4 · Inverter", 70, 0.125, {"A": 0.60, "B": 0.30, "C": 0.10}, 11.0, 4.0),
+            LineCfg("L1", "Line 1 · Compressor", 120, 0.105, {"A": 0.50, "B": 0.35, "C": 0.15}, 2.8, 3.8),
+            LineCfg("L2", "Line 2 · Radiator", 95, 0.115, {"A": 0.35, "B": 0.40, "C": 0.25}, 4.9, 4.2),
+            LineCfg("L3", "Line 3 · Starter", 100, 0.100, {"A": 0.55, "B": 0.30, "C": 0.15}, 7.3, 4.0),
+            LineCfg("L4", "Line 4 · Inverter", 70, 0.125, {"A": 0.60, "B": 0.30, "C": 0.10}, 9.6, 3.8),
         ],
         item_groups={
-            "A": ItemGroupCfg(pick_base=1.0, pick_per_line=0.65, load_min=1.2, unit="bin"),
-            "B": ItemGroupCfg(pick_base=1.6, pick_per_line=0.9, load_min=2.0, unit="box"),
-            "C": ItemGroupCfg(pick_base=2.6, pick_per_line=1.2, load_min=3.6, unit="pallet"),
+            "A": ItemGroupCfg(pick_base=0.75, pick_per_line=0.40, load_min=1.70, unit="bin"),
+            "B": ItemGroupCfg(pick_base=1.10, pick_per_line=0.55, load_min=2.60, unit="box"),
+            "C": ItemGroupCfg(pick_base=1.70, pick_per_line=0.75, load_min=3.97, unit="pallet"),
         },
         staffing={
             "picking": {"S1": 4, "S2": 4, "S3": 3},

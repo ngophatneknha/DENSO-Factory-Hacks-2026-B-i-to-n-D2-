@@ -129,17 +129,22 @@ def evaluate_actions_on_scenarios(
     # Filter feasible actions to compute Pareto frontier and rankings
     feasible_acts = [e for e in evaluations if e["is_feasible"]]
     if feasible_acts:
-        # Pareto check: non-dominated in (expected_loss_vnd, cvar90_loss_vnd)
+        # Pareto check: non-dominated in (cost_vnd, expected_loss_vnd, cvar90_loss_vnd)
         for act_a in feasible_acts:
             dominated = False
             for act_b in feasible_acts:
                 if act_a["action_id"] == act_b["action_id"]:
                     continue
-                # B dominates A if B is strictly better or equal in both objectives and strictly better in at least one
+                # B dominates A if B is strictly better or equal in all 3 objectives and strictly better in at least one
+                b_better_cost = act_b["cost_vnd"] <= act_a["cost_vnd"]
                 b_better_e = act_b["expected_loss_vnd"] <= act_a["expected_loss_vnd"]
                 b_better_c = act_b["cvar90_loss_vnd"] <= act_a["cvar90_loss_vnd"]
-                b_strictly = (act_b["expected_loss_vnd"] < act_a["expected_loss_vnd"]) or (act_b["cvar90_loss_vnd"] < act_a["cvar90_loss_vnd"])
-                if b_better_e and b_better_c and b_strictly:
+                b_strictly = (
+                    (act_b["cost_vnd"] < act_a["cost_vnd"])
+                    or (act_b["expected_loss_vnd"] < act_a["expected_loss_vnd"])
+                    or (act_b["cvar90_loss_vnd"] < act_a["cvar90_loss_vnd"])
+                )
+                if b_better_cost and b_better_e and b_better_c and b_strictly:
                     dominated = True
                     break
             act_a["is_pareto"] = not dominated
