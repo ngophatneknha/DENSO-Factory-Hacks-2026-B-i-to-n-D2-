@@ -87,6 +87,7 @@ const PITCH_STEPS = [
 
 export function App() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [visitedTabs, setVisitedTabs] = useState<Set<string>>(() => new Set(["overview"]));
   const [lang, setLang] = useState<"vi" | "en">("vi");
   const [status, setStatus] = useState<SystemStatus | null>(null);
   const [currentData, setCurrentData] = useState<any>(null);
@@ -99,6 +100,15 @@ export function App() {
   // Guided Judge Pitch Mode state
   const [pitchMode, setPitchMode] = useState<boolean>(true);
   const [pitchStepIdx, setPitchStepIdx] = useState<number>(0);
+
+  useEffect(() => {
+    setVisitedTabs((prev) => {
+      if (prev.has(activeTab)) return prev;
+      const next = new Set(prev);
+      next.add(activeTab);
+      return next;
+    });
+  }, [activeTab]);
 
   const loadAll = async () => {
     try {
@@ -130,6 +140,7 @@ export function App() {
 
   const handleLaunchSimulation = (cfg: ExternalSimConfig) => {
     setExternalSimConfig({ ...cfg });
+    setVisitedTabs((prev) => new Set(prev).add("simulate"));
     setActiveTab("simulate");
     setPitchStepIdx(3);
   };
@@ -284,30 +295,42 @@ export function App() {
                 lang={lang}
               />
             </div>
-            <div style={{ display: activeTab === "predict" ? "block" : "none" }}>
-              <PredictTab forecast={forecast} lang={lang} />
-            </div>
-            <div style={{ display: activeTab === "detect" ? "block" : "none" }}>
-              <DetectTab alerts={alerts} lang={lang} />
-            </div>
-            <div style={{ display: activeTab === "simulate" ? "block" : "none" }}>
-              <SimulateTab lang={lang} externalSimConfig={externalSimConfig} />
-            </div>
-            <div style={{ display: activeTab === "recommend" ? "block" : "none" }}>
-              <RecommendTab lang={lang} onLaunchSimulation={handleLaunchSimulation} />
-            </div>
-            <div style={{ display: activeTab === "data" ? "block" : "none" }}>
-              <DataTab
-                currentData={currentData}
-                quality={currentData?.quality || null}
-                onRefreshData={loadAll}
-                lang={lang}
-                onLaunchSimulation={handleLaunchSimulation}
-              />
-            </div>
-            <div style={{ display: activeTab === "audit" ? "block" : "none" }}>
-              <AuditTab lang={lang} isActive={activeTab === "audit"} />
-            </div>
+            {(activeTab === "predict" || visitedTabs.has("predict")) && (
+              <div style={{ display: activeTab === "predict" ? "block" : "none" }}>
+                <PredictTab forecast={forecast} lang={lang} />
+              </div>
+            )}
+            {(activeTab === "detect" || visitedTabs.has("detect")) && (
+              <div style={{ display: activeTab === "detect" ? "block" : "none" }}>
+                <DetectTab alerts={alerts} lang={lang} />
+              </div>
+            )}
+            {(activeTab === "simulate" || visitedTabs.has("simulate")) && (
+              <div style={{ display: activeTab === "simulate" ? "block" : "none" }}>
+                <SimulateTab lang={lang} externalSimConfig={externalSimConfig} />
+              </div>
+            )}
+            {(activeTab === "recommend" || visitedTabs.has("recommend")) && (
+              <div style={{ display: activeTab === "recommend" ? "block" : "none" }}>
+                <RecommendTab lang={lang} onLaunchSimulation={handleLaunchSimulation} />
+              </div>
+            )}
+            {(activeTab === "data" || visitedTabs.has("data")) && (
+              <div style={{ display: activeTab === "data" ? "block" : "none" }}>
+                <DataTab
+                  currentData={currentData}
+                  quality={currentData?.quality || null}
+                  onRefreshData={loadAll}
+                  lang={lang}
+                  onLaunchSimulation={handleLaunchSimulation}
+                />
+              </div>
+            )}
+            {(activeTab === "audit" || visitedTabs.has("audit")) && (
+              <div style={{ display: activeTab === "audit" ? "block" : "none" }}>
+                <AuditTab lang={lang} isActive={activeTab === "audit"} />
+              </div>
+            )}
           </>
         )}
       </main>

@@ -44,5 +44,9 @@ EXPOSE 8000
 
 WORKDIR /app/backend
 
+# Pre-validate / materialize binary Parquet dataset during Docker image build
+# so Render/Cloud Run containers boot in <1s even without Git LFS
+RUN python -m app.init_data
+
 # Dynamic port binding for local Docker, Render, Railway, and Cloud Run ($PORT)
 CMD ["sh", "-c", "python -m uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

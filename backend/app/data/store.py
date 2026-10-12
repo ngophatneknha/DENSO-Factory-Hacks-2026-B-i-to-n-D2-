@@ -60,12 +60,16 @@ class Dataset:
         self.path = path
         self.meta = json.loads((path / "meta.json").read_text(encoding="utf-8"))
         self._cache: Dict[str, pd.DataFrame] = {}
+        self._ds_lock = threading.Lock()
 
     def __getitem__(self, table: str) -> pd.DataFrame:
-        if table not in self._cache:
-            f = self.path / f"{table}.parquet"
-            self._cache[table] = pd.read_parquet(f) if f.exists() else pd.DataFrame()
-        return self._cache[table]
+        if table in self._cache:
+            return self._cache[table]
+        with self._ds_lock:
+            if table not in self._cache:
+                f = self.path / f"{table}.parquet"
+                self._cache[table] = pd.read_parquet(f) if f.exists() else pd.DataFrame()
+            return self._cache[table]
 
     def __contains__(self, table: str) -> bool:
         return (self.path / f"{table}.parquet").exists()
