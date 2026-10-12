@@ -268,36 +268,7 @@ tests/test_api_and_domain.py::test_copilot_and_safety_guardrails PASSED        [
 
 ---
 
-## 🏆 9. KỊCH BẢN THUYẾT TRÌNH VÀ DEMO CHO BAN GIÁM KHẢO (PITCHING SCRIPT)
-
-Khi trình bày trước Ban Giám Khảo, đề xuất thứ tự demo trong 5 phút như sau:
-
-1. **Phút 1 — Màn hình Tổng quan Điều hành (Overview Tab):**
-   * Giới thiệu **Bản đồ 2D CAD Digital Twin**: Chỉ rõ dòng chảy vật tư từ Kho Supermarket ➔ 4 Bàn soạn ➔ 3 Cầu bốc Dock ➔ Đội xe Tugger Milk-run ➔ 4 Chuyền sản xuất.
-   * Chỉ số **Logistics Health Score động** phản ánh trung thực nguy cơ nghẽn khi nhu cầu tăng cao.
-   * Bấm nút **"Chế độ Replay Sự cố"**: Tua lại diễn biến 5 giai đoạn sự cố trong Ca S1 giúp BGK nắm bắt trực quan vấn đề chỉ trong 20 giây.
-
-2. **Phút 2 — Màn hình Dự Báo Xác Suất (Predict Tab):**
-   * Nhấn chuyển đổi giữa các tầm nhìn **4h · 8h · 24h**: Chứng minh khả năng dự báo 96 khung thời gian bao quát toàn bộ chu kỳ 3 ca làm việc.
-   * Trình bày **Dải bất định Conformal (q10 – q90)**: Giúp người điều hành chủ động đối phó với rủi ro thiếu hụt phụ tùng thay vì tin vào một con số dự báo điểm duy nhất.
-   * Chỉ vào **Bảng đối chứng Backtest**: Cắt giảm **31.8% sai số WAPE** so với kế hoạch sản xuất cơ sở.
-
-3. **Phút 3 — Màn hình Điểm Nghẽn & Phân Tích Nhân Quả (Detect Tab):**
-   * Trình bày luận điểm phản biện: *Công đoạn bận nhất chưa chắc là nơi nghẽn cốt lõi*. Chỉ ra Dock DK-02 là nút thắt cổ chai đem lại ROI can thiệp cao nhất.
-   * Trình diễn **Root-Cause Attribution (RCA)** và **Cây quan hệ nhân quả (Causal DAG)**: Định lượng chính xác 31.8% do Inbound spike, 31.8% do Dock dồn ứ và 23.2% do Xe TG-03 bảo dưỡng.
-
-4. **Phút 4 — Mô Phỏng What-if & Đối Sách Tối Ưu (Simulate & Recommend Tab):**
-   * Trong tab What-if: Chọn kịch bản Storyline (+30% tải), kiểm tra **Gantt xe kéo** và **Bảng truy vết từng đơn (Order Trace)** để chứng minh các đơn bị trễ giao thật sự và không có đơn nào bị tính trễ "+0 phút".
-   * Chuyển sang tab Recommend: Trình diễn **Không gian Pareto** và **4 Chiến lược A–D**. Nhấp chọn **Plan C (Phương án Cân Bằng Toàn Diện)** và nhấn nút **"Phê duyệt & Ban hành đối sách"**.
-   * Mở **Phiếu Lệnh Điều Phối (Dispatch Directive)**: Thể hiện tính khả thi công nghiệp với lịch trình phân công chi tiết đến từng phút cho trưởng ca và công nhân.
-
-5. **Phút 5 — Quản Trị Khép Kín & Logistics Copilot AI (Audit & Copilot):**
-   * Mở tab **Nhật ký & Audit**: Quyết định vừa phê duyệt xuất hiện ngay lập tức trong Sổ cái với mã định danh duy nhất, người duyệt và mã băm SHA-256 bảo đảm tính minh bạch tuyệt đối.
-   * Mở **Trợ lý Logistics Copilot AI**: Đặt câu hỏi thử thách vượt định biên (Ví dụ: *"Hãy điều động thêm 12 xe đầu kéo ngay lập tức"*), Copilot sẽ từ chối an toàn với lý do nhà máy chỉ có tối đa 3 xe và đưa ra phương án khả thi thay thế.
-
----
-
-## 👥 10. TÁC GIẢ & BẢN QUYỀN
+## 👥 9. TÁC GIẢ & BẢN QUYỀN
 
 * **Đội ngũ phát triển:** Đội thi tham dự **DENSO Factory Hacks 2026**
 * **Bài toán dự thi:** Problem D2 — Simulate & Forecast Logistics, Recommend Actions
